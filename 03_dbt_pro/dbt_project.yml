@@ -1,0 +1,53 @@
+# =============================================================================
+# spark_retail_pack_pro — Proprietary dbt Project
+# =============================================================================
+# This project contains the commercial-licensed Pro tier of the Spark Retail Pack.
+# It depends on the OSS project (spark_retail_pack) via packages.yml.
+#
+# See ../01_design_docs/11_open_source_vs_pro_split.md for the OSS/Pro boundary.
+# See ../CLAUDE.md for project-wide conventions.
+#
+# IMPORTANT: Nothing in this project may be copied to 02_dbt_core/.
+# That boundary is the commercial differentiator. See Section 11.
+# =============================================================================
+
+name: 'spark_retail_pack_pro'
+version: '0.1.0'
+config-version: 2
+
+profile: 'spark_retail_pack_pro'
+
+model-paths:    ["models"]
+macro-paths:    ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+require-dbt-version: [">=1.7.0", "<2.0.0"]
+
+# Inherit vars from the OSS project where possible; Pro-specific vars below
+vars:
+  # Must match the OSS project's locked values (PHASE_0_DECISIONS.md)
+  reporting_currency: 'USD'
+  reporting_timezone: 'Africa/Nairobi'
+  pii_masking_enabled: true
+  pii_hashing_method: 'sha256'
+  pii_hash_salt: "{{ env_var('PII_HASH_SALT', '') }}"
+
+models:
+  spark_retail_pack_pro:
+    +materialized: table
+
+    advanced_metrics:
+      +schema: mart_pro
+      +tags: ['pro', 'advanced_metrics']
+
+    ai_ready:
+      +schema: ai_ready
+      +tags: ['pro', 'ai_ready']
+
+    semantic:
+      +schema: semantic
+      +tags: ['pro', 'semantic']
