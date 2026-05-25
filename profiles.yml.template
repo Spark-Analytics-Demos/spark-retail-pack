@@ -1,0 +1,86 @@
+# =============================================================================
+# spark_retail_pack — Profiles Template
+# =============================================================================
+# Copy this file to ~/.dbt/profiles.yml (or to the project root as profiles.yml)
+# and fill in the values. The actual profiles.yml is gitignored.
+#
+# Use environment variables for secrets. Never commit credentials.
+# =============================================================================
+
+spark_retail_pack:
+  # The 'target' is the default environment when running `dbt build`
+  # Override with: dbt build --target prod
+  target: dev
+
+  outputs:
+
+    # -------------------------------------------------------------------------
+    # Dev environment
+    # PII masking disabled (synthetic data only)
+    # Safety check: refuses to run against a DB name containing PROD
+    # -------------------------------------------------------------------------
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: RETAIL_TRANSFORMER
+      database: ANALYTICS_RETAIL_DEV
+      warehouse: WH_TRANSFORM
+      schema: "{{ env_var('SNOWFLAKE_DEV_SCHEMA', 'dev_' ~ env_var('USER', 'unknown')) }}"
+      threads: 4
+      client_session_keep_alive: false
+      query_tag: 'spark_retail_pack_dev'
+
+    # -------------------------------------------------------------------------
+    # Staging environment
+    # PII masking enabled; closest to production behavior
+    # -------------------------------------------------------------------------
+    staging:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: RETAIL_TRANSFORMER
+      database: ANALYTICS_RETAIL_STAGING
+      warehouse: WH_TRANSFORM
+      schema: staging
+      threads: 8
+      client_session_keep_alive: false
+      query_tag: 'spark_retail_pack_staging'
+
+    # -------------------------------------------------------------------------
+    # Production environment
+    # PII masking enabled; full role enforcement
+    # -------------------------------------------------------------------------
+    prod:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      # In prod, prefer key-pair auth over password
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE') }}"
+      role: RETAIL_TRANSFORMER
+      database: ANALYTICS_RETAIL
+      warehouse: WH_TRANSFORM
+      schema: prod
+      threads: 16
+      client_session_keep_alive: false
+      query_tag: 'spark_retail_pack_prod'
+
+    # -------------------------------------------------------------------------
+    # CI environment
+    # Dedicated CI schema; isolated from human dev work
+    # -------------------------------------------------------------------------
+    ci:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_CI_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_CI_PASSWORD') }}"
+      role: RETAIL_TRANSFORMER
+      database: ANALYTICS_RETAIL_DEV
+      warehouse: WH_TRANSFORM
+      schema: "ci_{{ env_var('GITHUB_PR_NUMBER', 'main') }}"
+      threads: 8
+      client_session_keep_alive: false
+      query_tag: 'spark_retail_pack_ci'

@@ -1,0 +1,171 @@
+# =============================================================================
+# spark_retail_pack — OSS Core dbt Project
+# =============================================================================
+# This is the open-source core of the Spark Retail Pack.
+# See ../01_design_docs/ for the full design document.
+# See ../CLAUDE.md for project-wide conventions.
+# =============================================================================
+
+name: 'spark_retail_pack'
+version: '0.1.0'   # Pre-release; bumps to 1.0.0 at v1 ship
+config-version: 2
+
+# This profile is read from profiles.yml at the user's ~/.dbt/profiles.yml
+# or at the project root. See profiles.yml.template for the structure.
+profile: 'spark_retail_pack'
+
+# -----------------------------------------------------------------------------
+# Project paths (defaults, kept explicit for clarity)
+# -----------------------------------------------------------------------------
+model-paths:    ["models"]
+seed-paths:     ["seeds"]
+test-paths:     ["tests"]
+analysis-paths: ["analyses"]
+macro-paths:    ["macros"]
+snapshot-paths: ["snapshots"]
+docs-paths:     ["docs"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+  - "logs"
+
+# -----------------------------------------------------------------------------
+# dbt version compatibility
+# Per Section 4 Part 3 §4.48: pinned dependencies
+# -----------------------------------------------------------------------------
+require-dbt-version: [">=1.7.0", "<2.0.0"]
+
+# -----------------------------------------------------------------------------
+# Project-level variables
+# These can be overridden per environment or per-run via --vars
+# -----------------------------------------------------------------------------
+vars:
+  # Reporting currency for all monetary values (Section 4 Part 1 §4.11)
+  reporting_currency: 'USD'
+
+  # Reporting timezone for date/time conversions (Section 4 Part 1 §4.7)
+  reporting_timezone: 'America/New_York'
+
+  # PII masking — toggle off only in dev with synthetic data (Section 8.5)
+  pii_masking_enabled: true
+  pii_hashing_method: 'sha256'
+  # The salt comes from an env var; never hardcoded
+  pii_hash_salt: "{{ env_var('PII_HASH_SALT', '') }}"
+
+  # Incremental lookback window (Section 4 Part 3 §4.35)
+  # Default 14 days catches order edits, refund updates, late-arriving data
+  incremental_lookback_days: 14
+
+  # Cancelled-order handling (Section 4 Part 2, fact_orders)
+  # Standard analytical contexts exclude cancelled orders
+  exclude_cancelled_orders: true
+
+  # Earliest data we want to load (filters out historical noise per Section 6.4)
+  min_order_date: '2020-01-01'
+
+# -----------------------------------------------------------------------------
+# Model configurations
+# Materialization defaults per Section 4 Part 3 §4.32
+# -----------------------------------------------------------------------------
+models:
+  spark_retail_pack:
+    # Default: views unless overridden below
+    +materialized: view
+
+    # Staging — views; one schema per source for clarity
+    staging:
+      +materialized: view
+      +schema: staging
+      shopify:
+        +tags: ['staging', 'shopify']
+      stripe:
+        +tags: ['staging', 'stripe']
+      ga4:
+        +tags: ['staging', 'ga4']
+      meta_ads:
+        +tags: ['staging', 'meta_ads']
+      klaviyo:
+        +tags: ['staging', 'klaviyo']
+
+    # Intermediate — ephemeral or views (not user-facing)
+    intermediate:
+      +materialized: ephemeral
+      +schema: intermediate
+      +tags: ['intermediate']
+
+    # Core — gold layer (dimensions and facts)
+    core:
+      +schema: gold
+      +tags: ['core']
+      dimensions:
+        +materialized: table
+        +tags: ['core', 'dimensions']
+      facts:
+        +materialized: incremental
+        +on_schema_change: 'append_new_columns'
+        +tags: ['core', 'facts']
+
+    # Marts — module-specific, materialized as tables
+    marts:
+      +materialized: table
+      +tags: ['marts']
+      sales:
+        +schema: mart_sales
+        +tags: ['marts', 'sales']
+      customer:
+        +schema: mart_customer
+        +tags: ['marts', 'customer']
+      inventory:
+        +schema: mart_inventory
+        +tags: ['marts', 'inventory']
+
+# -----------------------------------------------------------------------------
+# Seed configurations
+# Seeds for source mappings, channel mappings, etc.
+# -----------------------------------------------------------------------------
+seeds:
+  spark_retail_pack:
+    +schema: seeds
+    +quote_columns: false
+    source_mappings:
+      +tags: ['seeds', 'source_mappings']
+
+# -----------------------------------------------------------------------------
+# Snapshot configurations
+# SCD2 snapshots per Section 4 Part 3 §4.34
+# -----------------------------------------------------------------------------
+snapshots:
+  spark_retail_pack:
+    +target_schema: snapshots
+    +tags: ['snapshots']
+
+# -----------------------------------------------------------------------------
+# Test configurations
+# -----------------------------------------------------------------------------
+tests:
+  +severity: error
+  +store_failures: true
+  +store_failures_as: table
+  +schema: quarantine   # Failed test rows quarantined for review
+
+# -----------------------------------------------------------------------------
+# Query tags (Snowflake-specific; helpful for cost monitoring)
+# Uncomment once the query_comment macro is implemented (Phase 1)
+# -----------------------------------------------------------------------------
+# query-comment:
+#   comment: "{{ query_comment(node) }}"
+#   append: true   # Append to query text, don't replace
+
+# -----------------------------------------------------------------------------
+# Run hooks
+# Track every dbt run for audit and lineage (Section 4 Part 2 §4.31)
+# Uncomment once these macros are implemented (Phase 1)
+# -----------------------------------------------------------------------------
+# on-run-start:
+#   - "{{ log_run_start() }}"
+#
+# on-run-end:
+#   - "{{ log_run_end() }}"
+#   - "{{ grant_select_to_bi_reader() }}"
