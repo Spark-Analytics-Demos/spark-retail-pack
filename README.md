@@ -138,8 +138,8 @@ Until v1 ships and the OSS/Pro split is formalized in code, the entire repositor
 
 ## Maintained by
 
-[Spark Analytics](https://example.com) — Data Consultancy
+[Spark Analytics] https://sparkanalytics.co.ke/ — Data Consultancy
 
-For commercial inquiries: [contact@example.com](mailto:contact@example.com)
+For commercial inquiries: [info@sparkanalytics.co.ke](mailto:contact@example.com)
 
 For technical questions: open a GitHub Issue or join our Discord (link TBD)
