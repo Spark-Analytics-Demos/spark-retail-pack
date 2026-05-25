@@ -46,7 +46,8 @@ vars:
   reporting_currency: 'USD'
 
   # Reporting timezone for date/time conversions (Section 4 Part 1 §4.7)
-  reporting_timezone: 'America/New_York'
+  # Locked: Africa/Nairobi (EAT, UTC+3, no DST) — see PHASE_0_DECISIONS.md §3
+  reporting_timezone: 'Africa/Nairobi'
 
   # PII masking — toggle off only in dev with synthetic data (Section 8.5)
   pii_masking_enabled: true

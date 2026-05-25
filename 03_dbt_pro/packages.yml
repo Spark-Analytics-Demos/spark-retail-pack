@@ -1,0 +1,15 @@
+# =============================================================================
+# spark_retail_pack_pro — Package Dependencies
+# =============================================================================
+# The Pro project depends on the OSS core. When installing locally,
+# point the local path at the sibling 02_dbt_core/ directory.
+# In CI/CD, the OSS package is installed from its published release.
+# =============================================================================
+
+packages:
+  # OSS core — local path for development; swap to published package for release
+  - local: ../02_dbt_core
+
+  # dbt-utils — same version as OSS project (Section 4 Part 3 §4.48)
+  - package: dbt-labs/dbt_utils
+    version: 1.3.0
