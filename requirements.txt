@@ -1,0 +1,23 @@
+# =============================================================================
+# spark_retail_pack — Python Dependencies
+# =============================================================================
+# Pinned per Section 4 Part 3 §4.48 (canonical list).
+# Install with: pip install -r requirements.txt
+#
+# Recommended: use a virtual environment
+#   python -m venv .venv
+#   .venv\Scripts\activate         # Windows
+#   source .venv/bin/activate      # macOS/Linux
+#   pip install -r requirements.txt
+# =============================================================================
+
+# Core dbt
+dbt-core==1.8.0
+dbt-snowflake==1.8.0
+
+# SQL linting (used in CI, optional for local dev)
+sqlfluff==3.0.7
+sqlfluff-templater-dbt==3.0.7
+
+# Pre-commit hooks (optional local dev tool)
+pre-commit==3.7.0

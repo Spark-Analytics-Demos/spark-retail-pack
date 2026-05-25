@@ -1,0 +1,197 @@
+# =============================================================================
+# Spark Retail Pack — .gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Secrets — NEVER commit these
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+**/credentials.json
+**/service_account*.json
+profiles.yml         # dbt connection credentials — use profiles.yml.template instead
+
+# -----------------------------------------------------------------------------
+# dbt
+# -----------------------------------------------------------------------------
+target/
+dbt_packages/
+dbt_modules/
+logs/
+.dbt/
+*.duckdb            # local DuckDB caches if used for offline dev
+
+# dbt artifacts that should NOT be checked in
+**/manifest.json
+**/catalog.json
+**/run_results.json
+**/sources.json
+**/partial_parse.msgpack
+**/semantic_manifest.json
+
+# But DO commit the static docs site if we're publishing it
+!docs/static/
+
+# -----------------------------------------------------------------------------
+# Python (demo data generator, scripts)
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.virtualenv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Python testing/coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Type checking
+.mypy_cache/
+.pyre/
+.pytype/
+
+# -----------------------------------------------------------------------------
+# Power BI
+# -----------------------------------------------------------------------------
+# Backup files Power BI creates while editing
+*.pbix.tmp
+*.pbix.bak
+
+# Don't ignore .pbix files themselves — those are the deliverables
+# But do ignore exported intermediate working files
+*.pbit_temp
+
+# -----------------------------------------------------------------------------
+# Demo data — generated artifacts
+# -----------------------------------------------------------------------------
+# Generated CSV/JSON datasets — too large to commit; regenerated from generators
+05_demo_data/datasets/medium/
+05_demo_data/datasets/large/
+# But DO commit the small tier (used in unit tests)
+!05_demo_data/datasets/small/
+
+# Generator working files
+05_demo_data/.cache/
+05_demo_data/tmp/
+
+# -----------------------------------------------------------------------------
+# IDEs and editors
+# -----------------------------------------------------------------------------
+.vscode/
+!.vscode/settings.json.template
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# -----------------------------------------------------------------------------
+# Operating system files
+# -----------------------------------------------------------------------------
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# -----------------------------------------------------------------------------
+# Logs and temporary files
+# -----------------------------------------------------------------------------
+*.log
+*.tmp
+*.temp
+tmp/
+temp/
+
+# -----------------------------------------------------------------------------
+# Snowflake / cloud
+# -----------------------------------------------------------------------------
+# Snowflake connection state
+.snowsql/
+
+# Terraform (if used for infra)
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.tfvars.example
+
+# -----------------------------------------------------------------------------
+# OneDrive sync artifacts (since the working folder lives in OneDrive)
+# -----------------------------------------------------------------------------
+.~lock.*
+*.~lock
+
+# -----------------------------------------------------------------------------
+# Documentation builds
+# -----------------------------------------------------------------------------
+docs/_build/
+docs/.doctrees/
+site/
+
+# -----------------------------------------------------------------------------
+# Things we DO want to keep tracked
+# -----------------------------------------------------------------------------
+# These !patterns override the broader ignores above
+!.gitkeep
+!.gitignore
+!README.md
+!CLAUDE.md

@@ -1,0 +1,29 @@
+# =============================================================================
+# spark_retail_pack — Package Dependencies
+# =============================================================================
+# All versions pinned per Section 4 Part 3 §4.48 (canonical list).
+# Update via: dbt deps && dbt parse && dbt test
+# Bump versions through a PR with a tested upgrade.
+# =============================================================================
+
+packages:
+  # dbt-utils — utility macros (surrogate keys, date spine, etc.)
+  - package: dbt-labs/dbt_utils
+    version: 1.3.0
+
+  # dbt-codegen — accelerates source.yml and staging model creation
+  - package: dbt-labs/codegen
+    version: 0.13.1
+
+  # dbt-date — date dimension helpers (used in dim_date generation)
+  - package: calogica/dbt_date
+    version: 0.10.1
+
+  # dbt-external-tables — Snowflake external table helpers
+  - package: dbt-labs/dbt_external_tables
+    version: 0.10.1
+
+  # dbt-metrics / Semantic Layer — for MetricFlow YAML authoring
+  # Note: the Semantic Layer GraphQL API requires dbt Cloud (see ADR-004)
+  - package: dbt-labs/metrics
+    version: 1.7.5
