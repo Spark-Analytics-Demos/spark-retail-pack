@@ -1,0 +1,97 @@
+version: 2
+
+models:
+  - name: stg_ga4__events
+    description: >
+      GA4 raw event stream (Path 1: BigQuery export via Fivetran/Airbyte BigQuery connector).
+      One row per event per user session. Aggregated to session-grain in
+      int_ga4_session_aggregation. event_timestamp is converted from INT64 microseconds
+      to TIMESTAMP_TZ. Nested GA4 structs (device, traffic_source, geo) are accessed via
+      source_col() with Fivetran double-underscore defaults (§6.6).
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: user_pseudo_id
+        description: >
+          GA4 anonymous client ID — device-scoped. The same person on mobile and desktop
+          appears as two separate user_pseudo_ids. Not a stable user identifier.
+        tests:
+          - not_null
+      - name: user_id
+        description: >
+          Logged-in user ID set by the site (GA4 User-ID feature). Nullable for anonymous
+          sessions. Used to link web sessions to dim_customer when available.
+      - name: ga_session_id
+        description: >
+          Session ID extracted from GA4 event_params. Combined with user_pseudo_id to form
+          the composite session key in int_ga4_session_aggregation.
+      - name: event_name
+        description: "GA4 event name: page_view, session_start, purchase, user_engagement, etc."
+        tests:
+          - not_null
+      - name: event_date
+        description: "Date the event occurred (GA4 event_date, YYYYMMDD format normalized to DATE)."
+        tests:
+          - not_null
+      - name: event_timestamp
+        description: "Timestamp of the event, converted from INT64 microseconds since epoch."
+        tests:
+          - not_null
+      - name: device_category
+        description: "Device type: mobile, desktop, tablet."
+      - name: device_mobile_brand
+        description: "Mobile device brand name (Samsung, Apple, etc.). Null for desktop."
+      - name: device_os
+        description: "Operating system: iOS, Android, Windows, macOS, etc."
+      - name: browser
+        description: "Browser name: Chrome, Safari, Firefox, etc."
+      - name: traffic_source
+        description: "Traffic source: google, facebook, direct, etc."
+      - name: traffic_medium
+        description: "Traffic medium: cpc, organic, email, referral, etc."
+      - name: traffic_campaign
+        description: "Campaign name from traffic_source.name."
+      - name: geo_country
+        description: "Visitor country (ISO 3166-1 alpha-2)."
+      - name: geo_region
+        description: "Visitor region/state."
+      - name: page_location
+        description: "Full page URL. Populated on page_view events."
+      - name: page_referrer
+        description: "Referring URL. Populated on page_view events."
+      - name: page_title
+        description: "Page title. Populated on page_view events."
+      - name: transaction_id
+        description: "Order/transaction ID from ecommerce purchase event. Links to fact_orders."
+      - name: purchase_value
+        description: "Revenue reported by GA4 purchase event. In reporting currency."
+      - name: purchase_currency
+        description: "Currency of the purchase event value."
+      - name: engagement_time_msec
+        description: "Engagement time in milliseconds from user_engagement events."
+      - name: is_new_user
+        description: "TRUE for the first session from this user_pseudo_id."
+
+  - name: stg_ga4__users
+    description: >
+      GA4 user-level metadata synthesized from the BigQuery export. One row per user_pseudo_id.
+      Cross-referenced with dim_customer where user_id is set via GA4's User-ID feature.
+      user_pseudo_id is device-scoped; cross-device identity is a v2 concern (§6.6).
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: user_pseudo_id
+        description: "GA4 anonymous client ID. Primary key for this model."
+        tests:
+          - not_null
+          - unique
+      - name: user_id
+        description: "Logged-in user ID. Nullable; links to dim_customer when set."
+      - name: first_seen_date
+        description: "Date of the user's first recorded event."
+      - name: last_seen_date
+        description: "Date of the user's most recent recorded event."

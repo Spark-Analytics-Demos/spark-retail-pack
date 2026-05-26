@@ -1,0 +1,250 @@
+version: 2
+
+models:
+  - name: stg_stripe__customers
+    description: >
+      Stripe customer profiles. Cross-referenced with dim_customer via customer_email_hash.
+      Shopify is the primary source for all customer attributes; Stripe contributes only when
+      Shopify lacks a matching record. Merged in int_customer_identity_resolution.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: stripe_customer_id
+        description: "Stripe customer ID (cus_xxx)."
+        tests:
+          - not_null
+          - unique
+      - name: customer_email_hash
+        description: "SHA-256 hash of lowercased+trimmed email. Cross-source join key (ADR-003)."
+        tests:
+          - not_null
+      - name: phone_hash
+        description: "SHA-256 hash of phone number."
+      - name: name_hash
+        description: "SHA-256 hash of full name."
+      - name: is_delinquent
+        description: "TRUE if the customer's latest invoice payment failed."
+        tests:
+          - not_null
+      - name: is_live
+        description: "FALSE for test-mode customers (filtered out by default)."
+        tests:
+          - not_null
+      - name: created_at
+        description: "Timestamp when the Stripe customer was created."
+        tests:
+          - not_null
+      - name: _source_system
+        description: "Audit: source system name ('stripe')."
+      - name: _source_record_id
+        description: "Audit: stripe_customer_id."
+      - name: _extracted_at
+        description: "Audit: created_at used as extraction proxy."
+      - name: _loaded_at
+        description: "Audit: timestamp this row was loaded into Snowflake."
+      - name: _dbt_invocation_id
+        description: "Audit: dbt invocation ID."
+      - name: _dbt_model
+        description: "Audit: dbt model name."
+      - name: _record_hash
+        description: "Audit: surrogate key hash of stripe_customer_id + created_at."
+      - name: _is_deleted_at_source
+        description: "Audit: always false — Stripe customers are not hard-deleted."
+
+  - name: stg_stripe__charges
+    description: >
+      Stripe payment charge events. Filtered to livemode = true. Primary source for
+      Stripe-originated revenue, payment-method enrichment of fact_orders, and the
+      Shopify–Stripe reconciliation view (§6.5). Amounts converted from cents to decimal.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: charge_id
+        description: "Stripe charge ID (ch_xxx)."
+        tests:
+          - not_null
+          - unique
+      - name: stripe_customer_id
+        description: "FK to stg_stripe__customers.stripe_customer_id. Nullable for guest checkouts."
+      - name: charge_amount
+        description: "Charge amount in the account currency (converted from cents, §6.5)."
+        tests:
+          - not_null
+      - name: amount_refunded
+        description: "Amount already refunded against this charge, in account currency."
+        tests:
+          - not_null
+      - name: currency_code
+        description: "ISO 4217 uppercase currency code."
+        tests:
+          - not_null
+      - name: charge_status
+        description: "Charge outcome: succeeded, pending, failed."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [succeeded, pending, failed]
+      - name: payment_type
+        description: "Payment method type: card, klarna, affirm, afterpay_clearpay, etc."
+      - name: card_brand
+        description: "Card network brand: visa, mastercard, amex, discover, etc."
+      - name: card_last4
+        description: "Last 4 digits of the card number."
+      - name: card_exp_month
+        description: "Card expiry month."
+      - name: card_exp_year
+        description: "Card expiry year."
+      - name: card_wallet
+        description: "Digital wallet type if applicable: apple_pay, google_pay, etc."
+      - name: shopify_order_id
+        description: "Shopify order ID extracted from charge metadata. Used for reconciliation (§6.5)."
+      - name: payment_method_id
+        description: "Stripe payment method ID (pm_xxx). FK to stg_stripe__payment_methods."
+      - name: is_paid
+        description: "TRUE if the charge was successfully captured and funds transferred."
+        tests:
+          - not_null
+      - name: is_captured
+        description: "TRUE if the authorized charge has been captured."
+        tests:
+          - not_null
+      - name: is_refunded
+        description: "TRUE if the charge has been fully refunded."
+        tests:
+          - not_null
+      - name: charge_timestamp
+        description: "Timestamp when the charge was created."
+        tests:
+          - not_null
+
+  - name: stg_stripe__refunds
+    description: >
+      Stripe payment refunds (status = succeeded only). Combined with stg_stripe__disputes
+      into fact_refunds in the intermediate layer. is_chargeback = false for all rows here.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: refund_id
+        description: "Stripe refund ID (re_xxx)."
+        tests:
+          - not_null
+          - unique
+      - name: charge_id
+        description: "FK to stg_stripe__charges.charge_id."
+        tests:
+          - not_null
+      - name: refund_amount
+        description: "Refund amount in account currency (converted from cents)."
+        tests:
+          - not_null
+      - name: currency_code
+        description: "ISO 4217 uppercase currency code."
+        tests:
+          - not_null
+      - name: refund_status
+        description: "Refund outcome: succeeded (only value in this model after staging filter)."
+        tests:
+          - not_null
+      - name: refund_reason
+        description: "Refund reason: requested_by_customer, fraudulent, duplicate, or null."
+      - name: is_chargeback
+        description: "Always false — chargebacks are in stg_stripe__disputes."
+        tests:
+          - not_null
+      - name: refund_timestamp
+        description: "Timestamp when the refund was created."
+        tests:
+          - not_null
+
+  - name: stg_stripe__disputes
+    description: >
+      Stripe chargeback disputes initiated by the cardholder. Combined with
+      stg_stripe__refunds into fact_refunds. is_chargeback = true for all rows here.
+      All dispute statuses are retained (not filtered) to track win/loss outcomes.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: dispute_id
+        description: "Stripe dispute ID (dp_xxx)."
+        tests:
+          - not_null
+          - unique
+      - name: charge_id
+        description: "FK to stg_stripe__charges.charge_id."
+        tests:
+          - not_null
+      - name: dispute_amount
+        description: "Disputed amount in account currency (converted from cents)."
+        tests:
+          - not_null
+      - name: currency_code
+        description: "ISO 4217 uppercase currency code."
+        tests:
+          - not_null
+      - name: dispute_status
+        description: >
+          Dispute lifecycle status: warning_needs_response, warning_under_review,
+          warning_closed, needs_response, under_review, charge_refunded, won, lost.
+        tests:
+          - not_null
+      - name: dispute_reason
+        description: "Chargeback reason: fraudulent, unrecognized, duplicate, subscription_canceled, etc."
+      - name: is_chargeback
+        description: "Always true — refunds are in stg_stripe__refunds."
+        tests:
+          - not_null
+      - name: dispute_timestamp
+        description: "Timestamp when the dispute was opened."
+        tests:
+          - not_null
+
+  - name: stg_stripe__payment_methods
+    description: >
+      Stripe stored payment methods. Primary source for dim_payment_method card attributes.
+      Filtered to livemode = true.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: payment_method_id
+        description: "Stripe payment method ID (pm_xxx)."
+        tests:
+          - not_null
+          - unique
+      - name: stripe_customer_id
+        description: "FK to stg_stripe__customers.stripe_customer_id. Nullable for one-time use methods."
+      - name: payment_method_type
+        description: "Payment method type: card, klarna, affirm, afterpay_clearpay, etc."
+        tests:
+          - not_null
+      - name: card_brand
+        description: "Card network brand."
+      - name: card_last4
+        description: "Last 4 digits."
+      - name: card_exp_month
+        description: "Expiry month."
+      - name: card_exp_year
+        description: "Expiry year."
+      - name: card_wallet
+        description: "Digital wallet: apple_pay, google_pay, etc."
+      - name: card_funding
+        description: "Funding type: credit, debit, prepaid, unknown."
+      - name: card_country
+        description: "ISO 3166-1 alpha-2 country code of the card-issuing bank."
+      - name: is_live
+        description: "TRUE for live mode; FALSE for test mode (filtered at staging)."
+        tests:
+          - not_null
+      - name: created_at
+        description: "Timestamp when the payment method was created."
+        tests:
+          - not_null
