@@ -144,6 +144,10 @@ sources:
 
       - name: inventory_levels
         description: "Per-location stock quantities. Primary source for fact_inventory_snapshot."
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: updated_at
         columns:
           - name: inventory_item_id
             tests:
@@ -153,6 +157,9 @@ sources:
               - not_null
           - name: available
             description: "Units available for sale (net of committed)."
+            tests:
+              - not_null
+          - name: updated_at
             tests:
               - not_null
 
