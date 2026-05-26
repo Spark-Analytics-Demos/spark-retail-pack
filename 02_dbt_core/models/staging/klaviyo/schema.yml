@@ -1,0 +1,200 @@
+version: 2
+
+models:
+  - name: stg_klaviyo__profiles
+    description: >
+      Klaviyo customer profiles. Cross-referenced with dim_customer via customer_email_hash.
+      Klaviyo is the primary source for email_subscribed, sms_subscribed, and marketing_consent
+      — these override Shopify values in int_customer_identity_resolution (§6.8).
+      Profiles with consent_status = 'never_subscribed' are included but flagged correctly.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: klaviyo_profile_id
+        description: "Klaviyo profile ID."
+        tests:
+          - not_null
+          - unique
+      - name: customer_email_hash
+        description: "SHA-256 hash of lowercased+trimmed email. Cross-source join key (ADR-003)."
+        tests:
+          - not_null
+      - name: phone_hash
+        description: "SHA-256 hash of phone number."
+      - name: first_name_hash
+        description: "SHA-256 hash of first name."
+      - name: last_name_hash
+        description: "SHA-256 hash of last name."
+      - name: email_subscribed
+        description: "TRUE if the profile has active email marketing consent in Klaviyo. Overrides Shopify."
+        tests:
+          - not_null
+      - name: sms_subscribed
+        description: "TRUE if the profile has active SMS marketing consent in Klaviyo."
+        tests:
+          - not_null
+      - name: marketing_consent
+        description: "TRUE if subscribed to email OR SMS. Overrides Shopify in dim_customer."
+        tests:
+          - not_null
+      - name: created_at
+        description: "Timestamp when the Klaviyo profile was created."
+        tests:
+          - not_null
+      - name: updated_at
+        description: "Timestamp of the last profile update. Used for incremental loads."
+        tests:
+          - not_null
+
+  - name: stg_klaviyo__events
+    description: >
+      Klaviyo customer engagement events. One row per event. Event names mapped to
+      canonical event_type values: delivered, opened, clicked, bounced, unsubscribed,
+      marked_spam, converted, other. event_properties kept as VARIANT for downstream
+      extraction. Supports the 30-day lookback for profile re-merge handling (§6.8).
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: event_id
+        description: "Klaviyo event ID."
+        tests:
+          - not_null
+          - unique
+      - name: klaviyo_profile_id
+        description: "FK to stg_klaviyo__profiles.klaviyo_profile_id."
+        tests:
+          - not_null
+      - name: event_type
+        description: >
+          Canonical event type mapped from Klaviyo event_name: delivered, opened, clicked,
+          bounced, unsubscribed, marked_spam, converted, other.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - delivered
+                - opened
+                - clicked
+                - bounced
+                - unsubscribed
+                - marked_spam
+                - converted
+                - other
+      - name: event_name_raw
+        description: "Raw Klaviyo event name before canonical mapping."
+        tests:
+          - not_null
+      - name: campaign_id
+        description: "FK to stg_klaviyo__campaigns.campaign_id. Null for flow-triggered events."
+      - name: flow_id
+        description: "FK to stg_klaviyo__flows.flow_id. Null for campaign-triggered events."
+      - name: event_timestamp
+        description: "UTC timestamp when the event occurred."
+        tests:
+          - not_null
+      - name: event_date
+        description: "Date of the event. Derived from event_timestamp."
+        tests:
+          - not_null
+      - name: event_properties
+        description: "VARIANT object with event-specific metadata: link URL (clicks), bounce type, subject line snapshot, etc."
+
+  - name: stg_klaviyo__campaigns
+    description: >
+      Klaviyo one-time email campaign sends. One row per campaign. Combined with
+      stg_klaviyo__flows into dim_email_campaign with campaign_type = 'campaign' (§6.8).
+      send_date is null for campaigns not yet sent (draft, scheduled).
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: campaign_id
+        description: "Klaviyo campaign ID."
+        tests:
+          - not_null
+          - unique
+      - name: campaign_name
+        description: "Campaign name."
+        tests:
+          - not_null
+      - name: subject_line
+        description: "Email subject line for this campaign."
+        tests:
+          - not_null
+      - name: campaign_status
+        description: "Campaign lifecycle status: draft, scheduled, sent, cancelled."
+        tests:
+          - not_null
+      - name: campaign_type
+        description: "Always 'campaign' for this model. Combined with 'flow' in dim_email_campaign."
+        tests:
+          - not_null
+      - name: send_date
+        description: "Date the campaign was sent. Null for unsent campaigns."
+      - name: sent_at
+        description: "Timestamp when the campaign was sent. Null for unsent campaigns."
+      - name: audience_size
+        description: "Number of recipients for this campaign."
+        tests:
+          - not_null
+      - name: is_sent
+        description: "TRUE when campaign_status = sent."
+        tests:
+          - not_null
+      - name: created_at
+        description: "Timestamp when the campaign was created."
+        tests:
+          - not_null
+      - name: updated_at
+        description: "Timestamp of the last update."
+        tests:
+          - not_null
+
+  - name: stg_klaviyo__flows
+    description: >
+      Klaviyo automated email flows (welcome series, abandoned cart, post-purchase, etc.).
+      One row per flow. Combined with stg_klaviyo__campaigns into dim_email_campaign with
+      campaign_type = 'flow'. send_date is always null — flows have no single send date (§6.8).
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: flow_id
+        description: "Klaviyo flow ID."
+        tests:
+          - not_null
+          - unique
+      - name: flow_name
+        description: "Flow name (e.g. 'Welcome Series', 'Abandoned Cart')."
+        tests:
+          - not_null
+      - name: flow_status
+        description: "Flow lifecycle status: draft, manual, live, archived."
+        tests:
+          - not_null
+      - name: campaign_type
+        description: "Always 'flow' for this model."
+        tests:
+          - not_null
+      - name: trigger_type
+        description: "What triggers the flow: list, segment, metric, date, price_drop, etc."
+      - name: send_date
+        description: "Always null — flows are triggered per-customer, not broadcast (§6.8)."
+      - name: is_active
+        description: "TRUE when flow_status = live."
+        tests:
+          - not_null
+      - name: created_at
+        description: "Timestamp when the flow was created."
+        tests:
+          - not_null
+      - name: updated_at
+        description: "Timestamp of the last flow update."
+        tests:
+          - not_null

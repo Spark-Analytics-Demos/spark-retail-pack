@@ -1,0 +1,212 @@
+version: 2
+
+models:
+  - name: stg_meta_ads__campaigns
+    description: >
+      Meta Ads campaign master. One row per campaign. Budget amounts converted from cents
+      to decimal. campaign_id is prefixed with 'meta_' for cross-platform uniqueness in
+      dim_marketing_campaign. Platform-reported conversions are in stg_meta_ads__daily_insights.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: campaign_id
+        description: "Prefixed campaign ID ('meta_' + Meta campaign ID). Cross-platform unique key."
+        tests:
+          - not_null
+          - unique
+      - name: meta_campaign_id
+        description: "Raw Meta campaign ID without prefix."
+        tests:
+          - not_null
+      - name: account_id
+        description: "Meta ad account ID."
+        tests:
+          - not_null
+      - name: campaign_name
+        description: "Campaign name as set in Meta Ads Manager."
+        tests:
+          - not_null
+      - name: campaign_objective
+        description: "Campaign objective: CONVERSIONS, REACH, TRAFFIC, LEAD_GENERATION, etc."
+        tests:
+          - not_null
+      - name: campaign_status
+        description: "Campaign status: ACTIVE, PAUSED, DELETED, ARCHIVED."
+        tests:
+          - not_null
+      - name: buying_type
+        description: "Buying type: AUCTION or RESERVED."
+      - name: daily_budget
+        description: "Daily budget in account currency (converted from cents, §6.7)."
+      - name: lifetime_budget
+        description: "Lifetime budget in account currency (converted from cents, §6.7)."
+      - name: start_date
+        description: "Campaign start date."
+      - name: end_date
+        description: "Campaign end date. Null for ongoing campaigns."
+      - name: is_active
+        description: "TRUE when campaign_status = ACTIVE."
+        tests:
+          - not_null
+      - name: created_at
+        description: "Timestamp when the campaign was created."
+        tests:
+          - not_null
+      - name: updated_at
+        description: "Timestamp of the last campaign update."
+
+  - name: stg_meta_ads__ad_sets
+    description: >
+      Meta Ads ad set master. One row per ad set. The targeting layer between campaigns
+      and individual ads. campaign_id is prefixed with 'meta_' for FK consistency.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: ad_set_id
+        description: "Meta ad set ID."
+        tests:
+          - not_null
+          - unique
+      - name: campaign_id
+        description: "Prefixed campaign ID. FK to stg_meta_ads__campaigns.campaign_id."
+        tests:
+          - not_null
+      - name: meta_campaign_id
+        description: "Raw Meta campaign ID."
+      - name: ad_set_name
+        description: "Ad set name."
+        tests:
+          - not_null
+      - name: ad_set_status
+        description: "Ad set status: ACTIVE, PAUSED, DELETED, ARCHIVED."
+        tests:
+          - not_null
+      - name: is_active
+        description: "TRUE when ad_set_status = ACTIVE."
+        tests:
+          - not_null
+      - name: daily_budget
+        description: "Ad set daily budget (overrides campaign budget if set). Cents → decimal."
+      - name: bid_amount
+        description: "Manual bid cap amount. Cents → decimal."
+      - name: billing_event
+        description: "What Meta charges for: IMPRESSIONS, LINK_CLICKS, etc."
+      - name: optimization_goal
+        description: "What Meta optimizes for: CONVERSIONS, REACH, LINK_CLICKS, etc."
+      - name: start_date
+        description: "Ad set start date."
+      - name: end_date
+        description: "Ad set end date. Null for ongoing."
+      - name: created_at
+        description: "Timestamp when the ad set was created."
+        tests:
+          - not_null
+      - name: updated_at
+        description: "Timestamp of the last ad set update."
+
+  - name: stg_meta_ads__ads
+    description: >
+      Meta Ads individual ad metadata. One row per ad. Volatile creative attributes
+      (headline, image URL, copy) are not staged here — they belong in mart-layer tables.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: ad_id
+        description: "Meta ad ID."
+        tests:
+          - not_null
+          - unique
+      - name: ad_set_id
+        description: "FK to stg_meta_ads__ad_sets.ad_set_id. Source column is adset_id (Meta API convention)."
+        tests:
+          - not_null
+      - name: campaign_id
+        description: "Prefixed campaign ID. FK to stg_meta_ads__campaigns.campaign_id."
+        tests:
+          - not_null
+      - name: meta_campaign_id
+        description: "Raw Meta campaign ID."
+      - name: ad_name
+        description: "Ad name as set in Meta Ads Manager."
+        tests:
+          - not_null
+      - name: ad_status
+        description: "Ad status: ACTIVE, PAUSED, DELETED, ARCHIVED, DISAPPROVED."
+        tests:
+          - not_null
+      - name: is_active
+        description: "TRUE when ad_status = ACTIVE."
+        tests:
+          - not_null
+      - name: creative_id
+        description: "Meta creative ID. Links to ad creative (not staged in v1)."
+      - name: created_at
+        description: "Timestamp when the ad was created."
+        tests:
+          - not_null
+      - name: updated_at
+        description: "Timestamp of the last ad update."
+
+  - name: stg_meta_ads__daily_insights
+    description: >
+      Meta Ads daily performance metrics per ad (or ad set / campaign, configurable).
+      spend_amount_local is in the ad account's currency — FX conversion to reporting
+      currency happens in fact_marketing_spend. platform_reported_conversions are stored
+      for reference only; attribution uses UTM-matched warehouse data (§6.7).
+      See connector note in the SQL for the actions field handling.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+    columns:
+      - name: spend_date
+        description: "Reporting date for this insight row."
+        tests:
+          - not_null
+      - name: campaign_id
+        description: "Prefixed campaign ID. FK to stg_meta_ads__campaigns.campaign_id."
+        tests:
+          - not_null
+      - name: meta_campaign_id
+        description: "Raw Meta campaign ID."
+      - name: ad_set_id
+        description: "Meta ad set ID. Nullable if insights are at campaign granularity."
+      - name: ad_id
+        description: "Meta ad ID. Nullable if insights are at ad set or campaign granularity."
+      - name: spend_amount_local
+        description: "Spend in the ad account's local currency. Converted to reporting currency in fact_marketing_spend."
+        tests:
+          - not_null
+      - name: impressions
+        description: "Number of times ads were displayed."
+        tests:
+          - not_null
+      - name: clicks
+        description: "All clicks on ads (includes link clicks, post reactions, etc.)."
+        tests:
+          - not_null
+      - name: reach
+        description: "Unique users who saw the ad at least once."
+        tests:
+          - not_null
+      - name: link_clicks
+        description: "Clicks on links within the ad (inline_link_clicks). More meaningful than total clicks."
+        tests:
+          - not_null
+      - name: platform_reported_conversions
+        description: >
+          Purchase conversions as reported by Meta's attribution model. Inflated vs. warehouse
+          attribution due to broad attribution windows and iOS modeled conversions (§6.7).
+          Stored for side-by-side comparison; do not use as the primary conversion metric.
+        tests:
+          - not_null
+      - name: platform_reported_conversion_value
+        description: "Revenue attributed to this campaign by Meta's model. Same caveat as platform_reported_conversions."
+        tests:
+          - not_null
