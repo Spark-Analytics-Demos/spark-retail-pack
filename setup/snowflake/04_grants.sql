@@ -169,9 +169,10 @@ GRANT SELECT ON FUTURE VIEWS IN DATABASE ANALYTICS_RETAIL_DEV TO ROLE RETAIL_ANA
 -- (Uncomment and extend in Phase 2 when views exist.)
 
 -- =============================================================================
--- RETAIL_ADMIN — all privileges (humans only, not service accounts)
--- SYSADMIN inherited from 03_roles.sql GRANT ROLE SYSADMIN TO ROLE RETAIL_ADMIN.
--- Explicit grants below cover any objects not under SYSADMIN.
+-- RETAIL_ADMIN — all privileges on Retail Pack objects (humans only)
+-- RETAIL_ADMIN does NOT inherit SYSADMIN (circular grant — see 03_roles.sql).
+-- Explicit grants below give full control over the pack's databases and
+-- warehouses. For account-level ops (new warehouses, etc.) use ACCOUNTADMIN.
 -- =============================================================================
 
 GRANT ALL PRIVILEGES ON DATABASE RAW_RETAIL             TO ROLE RETAIL_ADMIN;
