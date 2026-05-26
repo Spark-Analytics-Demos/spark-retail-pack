@@ -44,6 +44,10 @@ sources:
 
       - name: users
         description: "User-level metadata from GA4. Cross-referenced with dim_customer where user_id is set."
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: _fivetran_synced   # ETL tool metadata column; GA4 users table lacks a native timestamp
         columns:
           - name: user_pseudo_id
             tests:

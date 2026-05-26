@@ -17,6 +17,29 @@ models:
       owner: analytics_engineering
       classification: internal
       pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "net_amount >= 0"
+          config:
+            severity: warn
+            alias: fact_orders_net_amount_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "refunded_amount <= net_amount + 0.01"
+          config:
+            severity: error
+            alias: fact_orders_refunded_not_exceed_net
+      - dbt_utils.expression_is_true:
+          expression: "gross_amount >= discount_amount"
+          config:
+            severity: warn
+            alias: fact_orders_gross_gte_discount
+      - dbt_utils.recency:
+          datepart: day
+          field: order_date
+          interval: 2
+          config:
+            severity: warn
+            alias: fact_orders_recency_2d
     columns:
       - name: order_sk
         description: Surrogate PK — MD5 of order_id.
@@ -150,6 +173,22 @@ models:
       owner: analytics_engineering
       classification: internal
       pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "quantity > 0"
+          config:
+            severity: error
+            alias: fact_order_lines_quantity_positive
+      - dbt_utils.expression_is_true:
+          expression: "refunded_quantity <= quantity + 0.01"
+          config:
+            severity: error
+            alias: fact_order_lines_refunded_lte_quantity
+      - dbt_utils.expression_is_true:
+          expression: "line_net_amount >= 0"
+          config:
+            severity: warn
+            alias: fact_order_lines_net_non_negative
     columns:
       - name: line_item_sk
         description: Surrogate PK — MD5 of line_item_id.
@@ -245,6 +284,19 @@ models:
       owner: analytics_engineering
       classification: internal
       pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "refund_amount >= 0"
+          config:
+            severity: error
+            alias: fact_refunds_amount_non_negative
+      - dbt_utils.recency:
+          datepart: day
+          field: refund_date
+          interval: 7
+          config:
+            severity: warn
+            alias: fact_refunds_recency_7d
     columns:
       - name: refund_sk
         description: Surrogate PK — MD5 of refund_id.
@@ -324,6 +376,34 @@ models:
       owner: analytics_engineering
       classification: internal
       pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "spend_amount >= 0"
+          config:
+            severity: error
+            alias: fact_marketing_spend_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "impressions >= 0"
+          config:
+            severity: error
+            alias: fact_marketing_spend_impressions_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "clicks >= 0"
+          config:
+            severity: error
+            alias: fact_marketing_spend_clicks_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "clicks <= impressions"
+          config:
+            severity: warn
+            alias: fact_marketing_spend_clicks_lte_impressions
+      - dbt_utils.recency:
+          datepart: day
+          field: spend_date
+          interval: 2
+          config:
+            severity: warn
+            alias: fact_marketing_spend_recency_2d
     columns:
       - name: spend_sk
         description: Surrogate PK — MD5 of campaign_id + spend_date.
@@ -387,6 +467,24 @@ models:
       owner: analytics_engineering
       classification: internal
       pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "session_duration_seconds >= 0"
+          config:
+            severity: error
+            alias: fact_web_sessions_duration_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "page_views >= 0"
+          config:
+            severity: error
+            alias: fact_web_sessions_page_views_non_negative
+      - dbt_utils.recency:
+          datepart: day
+          field: session_date
+          interval: 2
+          config:
+            severity: warn
+            alias: fact_web_sessions_recency_2d
     columns:
       - name: session_sk
         description: Surrogate PK — MD5 of session_id.
@@ -455,6 +553,14 @@ models:
       owner: analytics_engineering
       classification: internal
       pii_present: false
+    tests:
+      - dbt_utils.recency:
+          datepart: day
+          field: event_date
+          interval: 3
+          config:
+            severity: warn
+            alias: fact_email_engagement_recency_3d
     columns:
       - name: event_sk
         description: Surrogate PK — MD5 of event_id.
@@ -509,6 +615,24 @@ models:
       owner: analytics_engineering
       classification: internal
       pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "lifetime_order_count >= 0"
+          config:
+            severity: error
+            alias: fact_customer_state_daily_order_count_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "days_since_acquisition >= 0"
+          config:
+            severity: error
+            alias: fact_customer_state_daily_days_since_acq_non_negative
+      - dbt_utils.recency:
+          datepart: day
+          field: snapshot_date
+          interval: 1
+          config:
+            severity: warn
+            alias: fact_customer_state_daily_recency_1d
     columns:
       - name: customer_state_sk
         description: Surrogate PK — MD5 of customer_id + snapshot_date.
@@ -569,6 +693,19 @@ models:
       owner: analytics_engineering
       classification: internal
       pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "quantity_available >= -100"
+          config:
+            severity: warn
+            alias: fact_inventory_snapshot_quantity_reasonable
+      - dbt_utils.recency:
+          datepart: day
+          field: snapshot_date
+          interval: 1
+          config:
+            severity: warn
+            alias: fact_inventory_snapshot_recency_1d
     columns:
       - name: inventory_snapshot_sk
         description: Surrogate PK — MD5 of inventory_item_id + location_id + snapshot_date.
@@ -631,6 +768,19 @@ models:
       owner: analytics_engineering
       classification: internal
       pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "quantity_change != 0"
+          config:
+            severity: error
+            alias: fact_inventory_movements_quantity_non_zero
+      - dbt_utils.recency:
+          datepart: day
+          field: movement_date
+          interval: 7
+          config:
+            severity: warn
+            alias: fact_inventory_movements_recency_7d
     columns:
       - name: movement_sk
         description: Surrogate PK — MD5 of movement_id.
