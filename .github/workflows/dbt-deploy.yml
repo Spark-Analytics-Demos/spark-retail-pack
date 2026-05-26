@@ -45,6 +45,10 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+          cache-dependency-path: 02_dbt_core/requirements.txt
+
+      - name: Set up dbt profiles
+        run: mkdir -p ~/.dbt && cp profiles.yml.template ~/.dbt/profiles.yml
 
       - name: Install dbt
         run: pip install -r requirements.txt
