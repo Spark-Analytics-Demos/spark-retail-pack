@@ -1,0 +1,129 @@
+geography_id,country_code,country_name,country_region,country_subregion,state_or_region_code,state_or_region_name,default_currency,default_timezone,is_tax_jurisdiction
+KE,KE,Kenya,EMEA,Sub-Saharan Africa,,,KES,Africa/Nairobi,true
+NG,NG,Nigeria,EMEA,Sub-Saharan Africa,,,NGN,Africa/Lagos,true
+ZA,ZA,South Africa,EMEA,Sub-Saharan Africa,,,ZAR,Africa/Johannesburg,true
+EG,EG,Egypt,EMEA,North Africa,,,EGP,Africa/Cairo,true
+GH,GH,Ghana,EMEA,Sub-Saharan Africa,,,GHS,Africa/Accra,true
+ET,ET,Ethiopia,EMEA,Sub-Saharan Africa,,,ETB,Africa/Addis_Ababa,true
+TZ,TZ,Tanzania,EMEA,Sub-Saharan Africa,,,TZS,Africa/Dar_es_Salaam,true
+UG,UG,Uganda,EMEA,Sub-Saharan Africa,,,UGX,Africa/Kampala,true
+RW,RW,Rwanda,EMEA,Sub-Saharan Africa,,,RWF,Africa/Kigali,true
+MA,MA,Morocco,EMEA,North Africa,,,MAD,Africa/Casablanca,true
+SN,SN,Senegal,EMEA,Sub-Saharan Africa,,,XOF,Africa/Dakar,true
+CI,CI,Côte d'Ivoire,EMEA,Sub-Saharan Africa,,,XOF,Africa/Abidjan,true
+CM,CM,Cameroon,EMEA,Sub-Saharan Africa,,,XAF,Africa/Douala,true
+TN,TN,Tunisia,EMEA,North Africa,,,TND,Africa/Tunis,true
+DZ,DZ,Algeria,EMEA,North Africa,,,DZD,Africa/Algiers,true
+GB,GB,United Kingdom,EMEA,Western Europe,,,GBP,Europe/London,true
+DE,DE,Germany,EMEA,Western Europe,,,EUR,Europe/Berlin,true
+FR,FR,France,EMEA,Western Europe,,,EUR,Europe/Paris,true
+IT,IT,Italy,EMEA,Western Europe,,,EUR,Europe/Rome,true
+ES,ES,Spain,EMEA,Western Europe,,,EUR,Europe/Madrid,true
+NL,NL,Netherlands,EMEA,Western Europe,,,EUR,Europe/Amsterdam,true
+SE,SE,Sweden,EMEA,Northern Europe,,,SEK,Europe/Stockholm,true
+CH,CH,Switzerland,EMEA,Western Europe,,,CHF,Europe/Zurich,true
+BE,BE,Belgium,EMEA,Western Europe,,,EUR,Europe/Brussels,true
+NO,NO,Norway,EMEA,Northern Europe,,,NOK,Europe/Oslo,true
+DK,DK,Denmark,EMEA,Northern Europe,,,DKK,Europe/Copenhagen,true
+PL,PL,Poland,EMEA,Eastern Europe,,,PLN,Europe/Warsaw,true
+PT,PT,Portugal,EMEA,Western Europe,,,EUR,Europe/Lisbon,true
+IE,IE,Ireland,EMEA,Western Europe,,,EUR,Europe/Dublin,true
+AT,AT,Austria,EMEA,Western Europe,,,EUR,Europe/Vienna,true
+FI,FI,Finland,EMEA,Northern Europe,,,EUR,Europe/Helsinki,true
+GR,GR,Greece,EMEA,Southern Europe,,,EUR,Europe/Athens,true
+AE,AE,United Arab Emirates,EMEA,Middle East,,,AED,Asia/Dubai,true
+SA,SA,Saudi Arabia,EMEA,Middle East,,,SAR,Asia/Riyadh,true
+TR,TR,Turkey,EMEA,Middle East,,,TRY,Europe/Istanbul,true
+US,US,United States,Americas,North America,,,USD,America/New_York,true
+CA,CA,Canada,Americas,North America,,,CAD,America/Toronto,true
+BR,BR,Brazil,Americas,South America,,,BRL,America/Sao_Paulo,true
+MX,MX,Mexico,Americas,Central America,,,MXN,America/Mexico_City,true
+AR,AR,Argentina,Americas,South America,,,ARS,America/Argentina/Buenos_Aires,true
+CO,CO,Colombia,Americas,South America,,,COP,America/Bogota,true
+CL,CL,Chile,Americas,South America,,,CLP,America/Santiago,true
+PE,PE,Peru,Americas,South America,,,PEN,America/Lima,true
+AU,AU,Australia,APAC,Oceania,,,AUD,Australia/Sydney,true
+NZ,NZ,New Zealand,APAC,Oceania,,,NZD,Pacific/Auckland,true
+IN,IN,India,APAC,South Asia,,,INR,Asia/Kolkata,true
+CN,CN,China,APAC,East Asia,,,CNY,Asia/Shanghai,true
+JP,JP,Japan,APAC,East Asia,,,JPY,Asia/Tokyo,true
+SG,SG,Singapore,APAC,Southeast Asia,,,SGD,Asia/Singapore,true
+KR,KR,South Korea,APAC,East Asia,,,KRW,Asia/Seoul,true
+HK,HK,Hong Kong,APAC,East Asia,,,HKD,Asia/Hong_Kong,true
+TW,TW,Taiwan,APAC,East Asia,,,TWD,Asia/Taipei,true
+TH,TH,Thailand,APAC,Southeast Asia,,,THB,Asia/Bangkok,true
+MY,MY,Malaysia,APAC,Southeast Asia,,,MYR,Asia/Kuala_Lumpur,true
+ID,ID,Indonesia,APAC,Southeast Asia,,,IDR,Asia/Jakarta,true
+PH,PH,Philippines,APAC,Southeast Asia,,,PHP,Asia/Manila,true
+VN,VN,Vietnam,APAC,Southeast Asia,,,VND,Asia/Ho_Chi_Minh,true
+IL,IL,Israel,EMEA,Middle East,,,ILS,Asia/Jerusalem,true
+US-AL,US,United States,Americas,North America,AL,Alabama,USD,America/Chicago,true
+US-AK,US,United States,Americas,North America,AK,Alaska,USD,America/Anchorage,true
+US-AZ,US,United States,Americas,North America,AZ,Arizona,USD,America/Phoenix,true
+US-AR,US,United States,Americas,North America,AR,Arkansas,USD,America/Chicago,true
+US-CA,US,United States,Americas,North America,CA,California,USD,America/Los_Angeles,true
+US-CO,US,United States,Americas,North America,CO,Colorado,USD,America/Denver,true
+US-CT,US,United States,Americas,North America,CT,Connecticut,USD,America/New_York,true
+US-DE,US,United States,Americas,North America,DE,Delaware,USD,America/New_York,true
+US-DC,US,United States,Americas,North America,DC,District of Columbia,USD,America/New_York,true
+US-FL,US,United States,Americas,North America,FL,Florida,USD,America/New_York,true
+US-GA,US,United States,Americas,North America,GA,Georgia,USD,America/New_York,true
+US-HI,US,United States,Americas,North America,HI,Hawaii,USD,Pacific/Honolulu,true
+US-ID,US,United States,Americas,North America,ID,Idaho,USD,America/Denver,true
+US-IL,US,United States,Americas,North America,IL,Illinois,USD,America/Chicago,true
+US-IN,US,United States,Americas,North America,IN,Indiana,USD,America/Indiana/Indianapolis,true
+US-IA,US,United States,Americas,North America,IA,Iowa,USD,America/Chicago,true
+US-KS,US,United States,Americas,North America,KS,Kansas,USD,America/Chicago,true
+US-KY,US,United States,Americas,North America,KY,Kentucky,USD,America/New_York,true
+US-LA,US,United States,Americas,North America,LA,Louisiana,USD,America/Chicago,true
+US-ME,US,United States,Americas,North America,ME,Maine,USD,America/New_York,true
+US-MD,US,United States,Americas,North America,MD,Maryland,USD,America/New_York,true
+US-MA,US,United States,Americas,North America,MA,Massachusetts,USD,America/New_York,true
+US-MI,US,United States,Americas,North America,MI,Michigan,USD,America/Detroit,true
+US-MN,US,United States,Americas,North America,MN,Minnesota,USD,America/Chicago,true
+US-MS,US,United States,Americas,North America,MS,Mississippi,USD,America/Chicago,true
+US-MO,US,United States,Americas,North America,MO,Missouri,USD,America/Chicago,true
+US-MT,US,United States,Americas,North America,MT,Montana,USD,America/Denver,true
+US-NE,US,United States,Americas,North America,NE,Nebraska,USD,America/Chicago,true
+US-NV,US,United States,Americas,North America,NV,Nevada,USD,America/Los_Angeles,true
+US-NH,US,United States,Americas,North America,NH,New Hampshire,USD,America/New_York,true
+US-NJ,US,United States,Americas,North America,NJ,New Jersey,USD,America/New_York,true
+US-NM,US,United States,Americas,North America,NM,New Mexico,USD,America/Denver,true
+US-NY,US,United States,Americas,North America,NY,New York,USD,America/New_York,true
+US-NC,US,United States,Americas,North America,NC,North Carolina,USD,America/New_York,true
+US-ND,US,United States,Americas,North America,ND,North Dakota,USD,America/Chicago,true
+US-OH,US,United States,Americas,North America,OH,Ohio,USD,America/New_York,true
+US-OK,US,United States,Americas,North America,OK,Oklahoma,USD,America/Chicago,true
+US-OR,US,United States,Americas,North America,OR,Oregon,USD,America/Los_Angeles,true
+US-PA,US,United States,Americas,North America,PA,Pennsylvania,USD,America/New_York,true
+US-RI,US,United States,Americas,North America,RI,Rhode Island,USD,America/New_York,true
+US-SC,US,United States,Americas,North America,SC,South Carolina,USD,America/New_York,true
+US-SD,US,United States,Americas,North America,SD,South Dakota,USD,America/Chicago,true
+US-TN,US,United States,Americas,North America,TN,Tennessee,USD,America/Chicago,true
+US-TX,US,United States,Americas,North America,TX,Texas,USD,America/Chicago,true
+US-UT,US,United States,Americas,North America,UT,Utah,USD,America/Denver,true
+US-VT,US,United States,Americas,North America,VT,Vermont,USD,America/New_York,true
+US-VA,US,United States,Americas,North America,VA,Virginia,USD,America/New_York,true
+US-WA,US,United States,Americas,North America,WA,Washington,USD,America/Los_Angeles,true
+US-WV,US,United States,Americas,North America,WV,West Virginia,USD,America/New_York,true
+US-WI,US,United States,Americas,North America,WI,Wisconsin,USD,America/Chicago,true
+US-WY,US,United States,Americas,North America,WY,Wyoming,USD,America/Denver,true
+GB-ENG,GB,United Kingdom,EMEA,Western Europe,ENG,England,GBP,Europe/London,true
+GB-SCT,GB,United Kingdom,EMEA,Western Europe,SCT,Scotland,GBP,Europe/London,true
+GB-WLS,GB,United Kingdom,EMEA,Western Europe,WLS,Wales,GBP,Europe/London,true
+GB-NIR,GB,United Kingdom,EMEA,Western Europe,NIR,Northern Ireland,GBP,Europe/London,true
+CA-AB,CA,Canada,Americas,North America,AB,Alberta,CAD,America/Edmonton,true
+CA-BC,CA,Canada,Americas,North America,BC,British Columbia,CAD,America/Vancouver,true
+CA-MB,CA,Canada,Americas,North America,MB,Manitoba,CAD,America/Winnipeg,true
+CA-NB,CA,Canada,Americas,North America,NB,New Brunswick,CAD,America/Moncton,true
+CA-NL,CA,Canada,Americas,North America,NL,Newfoundland and Labrador,CAD,America/St_Johns,true
+CA-NS,CA,Canada,Americas,North America,NS,Nova Scotia,CAD,America/Halifax,true
+CA-ON,CA,Canada,Americas,North America,ON,Ontario,CAD,America/Toronto,true
+CA-PE,CA,Canada,Americas,North America,PE,Prince Edward Island,CAD,America/Halifax,true
+CA-QC,CA,Canada,Americas,North America,QC,Quebec,CAD,America/Toronto,true
+CA-SK,CA,Canada,Americas,North America,SK,Saskatchewan,CAD,America/Regina,true
+AU-NSW,AU,Australia,APAC,Oceania,NSW,New South Wales,AUD,Australia/Sydney,true
+AU-VIC,AU,Australia,APAC,Oceania,VIC,Victoria,AUD,Australia/Melbourne,true
+AU-QLD,AU,Australia,APAC,Oceania,QLD,Queensland,AUD,Australia/Brisbane,true
+AU-WA,AU,Australia,APAC,Oceania,WA,Western Australia,AUD,Australia/Perth,true
+AU-SA,AU,Australia,APAC,Oceania,SA,South Australia,AUD,Australia/Adelaide,true
