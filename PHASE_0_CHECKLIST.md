@@ -106,22 +106,19 @@ Document the decisions in a new file `PHASE_0_DECISIONS.md` at the repo root. Th
 
 ## 0.4 CI/CD pipeline (Section 4 Part 3 §4.44, ~1.5 eng-weeks)
 
-- [ ] GitHub Actions (or chosen CI provider) workflow file created
-- [ ] CI runs on every PR with these checks:
-  - [ ] `dbt deps`
-  - [ ] `dbt parse`
-  - [ ] `dbt build --select state:modified+` (against a CI-dedicated Snowflake schema)
-  - [ ] `dbt test`
-  - [ ] SQLFluff linting on changed `.sql` files
-  - [ ] YAML schema validation on changed `.yml` files
-  - [ ] Python tests for demo generator (when generator exists)
-- [ ] CI uses a service account with `RETAIL_TRANSFORMER` role
-- [ ] CI secrets configured (Snowflake credentials, dbt Cloud token if used)
-- [ ] Branch protection rules on `main`:
-  - [ ] Require PR before merge
-  - [ ] Require CI to pass
-  - [ ] Require at least one review
-- [ ] CI failure alerts route to a Slack channel (or equivalent)
+- [x] GitHub Actions workflow files created: `.github/workflows/dbt-ci.yml` (PR) and `.github/workflows/dbt-deploy.yml` (merge to main)
+- [x] CI runs on every PR with these checks:
+  - [x] `dbt deps`
+  - [x] `dbt parse`
+  - [x] `dbt build --select state:modified+` (uses GitHub Actions cache for manifest; falls back to full build on first run)
+  - [x] SQLFluff linting on changed `.sql` files (config in `02_dbt_core/.sqlfluff`)
+  - [x] YAML lint on changed `.yml` files
+  - [ ] `dbt test` — runs as part of `dbt build`; no standalone test step needed until Phase 1 models exist
+  - [ ] Python tests for demo generator — deferred to Phase 3 (generator not yet written)
+- [x] CI uses `SVC_DBT` service account with `RETAIL_TRANSFORMER` role (dedicated `SVC_CI` account optional for Phase 1)
+- [ ] CI secrets configured in GitHub repo Settings → Secrets → Actions (see notes log — manual step)
+- [ ] Branch protection rules on `main` — manual step in GitHub Settings (see notes log)
+- [ ] CI failure alerts — deferred; add Slack webhook in Phase 1 when first real build runs
 
 ---
 
@@ -235,6 +232,31 @@ Salt: `c19288b15753a0db947d1074c98030e0dc0089cbcd33107c6bc0c1c8ad95284c`. This v
 
 **2026-05-26 — Circular role grant in `03_roles.sql`**
 `GRANT ROLE SYSADMIN TO RETAIL_ADMIN` failed because the prior statement had already granted `RETAIL_ADMIN` to `SYSADMIN`. Fixed by removing the downward grant. See decision above.
+
+**2026-05-26 — CI deploy target is `staging`, not `prod` (Phase 0)**
+`dbt-deploy.yml` targets the `staging` environment. `prod` requires RSA key-pair auth (`SNOWFLAKE_PRIVATE_KEY_PATH`) which is not yet configured. Migrate to `prod` target + key-pair in Phase 1.
+
+**2026-05-26 — CI uses `SVC_DBT` for Phase 0**
+No dedicated `SVC_CI` account exists yet. `SVC_DBT` has `RETAIL_TRANSFORMER` and sufficient privileges. Create a dedicated CI account in Phase 1 if audit separation is required.
+
+### Manual steps required (cannot be automated without gh CLI)
+
+**GitHub Secrets** — set in repo Settings → Secrets and variables → Actions:
+
+| Secret name | Value |
+|---|---|
+| `SNOWFLAKE_ACCOUNT` | `RYXGDWD-FPB13834` |
+| `SNOWFLAKE_CI_USER` | `SVC_DBT` |
+| `SNOWFLAKE_CI_PASSWORD` | *(SVC_DBT password — in your `.env`)* |
+| `SNOWFLAKE_USER` | `SVC_DBT` |
+| `SNOWFLAKE_PASSWORD` | *(SVC_DBT password — in your `.env`)* |
+| `PII_HASH_SALT` | *(value from your `.env`)* |
+
+**Branch protection on `main`** — set in repo Settings → Branches → Add rule for `main`:
+- [x] Require a pull request before merging
+- [x] Require status checks to pass: `Lint (SQL + YAML)` and `dbt deps → parse → build`
+- [x] Require at least 1 approving review
+- [x] Do not allow bypassing the above settings
 
 ### Candidate ADRs
 
