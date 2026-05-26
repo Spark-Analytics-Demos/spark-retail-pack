@@ -1,0 +1,27 @@
+source: ga4
+mapping_type: overrides
+
+# Ingestion path: 'bigquery_export' (event-level, recommended) or 'api' (session-level, aggregated).
+# Path 1 requires configuring GA4 → BigQuery export and a BigQuery connector in your ETL tool.
+# Path 2 uses the GA4 Reporting API connector directly (Fivetran, Airbyte).
+ingestion_path: bigquery_export
+
+# GA4 properties report in their own timezone. Set to match your GA4 property timezone
+# so that session dates align with Shopify order dates (which are in UTC).
+# The pack converts all timestamps to the reporting_timezone var (Africa/Nairobi) in staging.
+reporting_timezone: Africa/Nairobi
+
+bot_filtering:
+  # Filter sessions with exactly 1 event and 0 seconds duration (likely bot traffic).
+  # Off by default to avoid false positives; enable after validating against your traffic.
+  exclude_zero_duration_single_event: false
+
+attribution:
+  # Override the default GA4 UTM channel grouping for specific source/medium combinations.
+  # These are applied in stg_ga4__events before channel_sk assignment.
+  channel_grouping_overrides: []
+  # Example:
+  # channel_grouping_overrides:
+  #   - source: newsletter
+  #     medium: email
+  #     canonical_channel: email_marketing

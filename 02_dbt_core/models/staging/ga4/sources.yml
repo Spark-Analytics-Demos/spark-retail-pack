@@ -1,0 +1,51 @@
+version: 2
+
+sources:
+  - name: ga4
+    description: "Google Analytics 4 data landed in the bronze layer by the ingestion tool."
+    database: RAW_RETAIL
+    schema: GA4
+    meta:
+      owner: analytics_engineering
+      source_system: ga4
+      classification: bronze
+    # GA4 does not have a direct Snowflake connector. Two supported ingestion paths:
+    #   Path 1 (recommended): GA4 → BigQuery native export → Fivetran/Airbyte BigQuery connector → Snowflake
+    #   Path 2 (alternative): GA4 Reporting API connector (Fivetran, Airbyte) — aggregated, rate-limited
+    # Configure seeds/source_mappings/ga4__overrides.yml with your chosen path.
+    # GA4's BigQuery export is event-level; the Reporting API produces session-level aggregates.
+    # Freshness is set generously to accommodate GA4's 24–48h export latency (§8.8).
+
+    tables:
+      - name: events
+        description: >
+          Raw event-level data from the GA4 BigQuery export (Path 1). One row per event per session.
+          Staging aggregates these to session-grain in int_ga4_session_aggregation.
+          For Path 2 (API), this table contains pre-aggregated session rows instead.
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: event_date
+        columns:
+          - name: event_date
+            description: "Date of the event in YYYYMMDD format (GA4 native) or DATE after ingestion normalization."
+            tests:
+              - not_null
+          - name: event_name
+            description: "GA4 event name (e.g. page_view, purchase, session_start)."
+            tests:
+              - not_null
+          - name: user_pseudo_id
+            description: "GA4 anonymous client ID — device-scoped, not user-scoped."
+            tests:
+              - not_null
+          - name: ga_session_id
+            description: "Session ID extracted from event_params. Combined with user_pseudo_id to form the composite session key."
+
+      - name: users
+        description: "User-level metadata from GA4. Cross-referenced with dim_customer where user_id is set."
+        columns:
+          - name: user_pseudo_id
+            tests:
+              - not_null
+              - unique

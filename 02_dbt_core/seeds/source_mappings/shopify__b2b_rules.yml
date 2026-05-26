@@ -1,0 +1,17 @@
+source: shopify
+source_table: customers
+mapping_type: b2b_detection
+
+# Rules that determine whether a customer is classified as B2B in dim_customer.is_b2b_customer.
+# A customer matches if ANY of the tag_patterns match, or if company_field_required is met,
+# or if their average order value exceeds min_order_amount_for_b2b_flag.
+
+b2b_detection:
+  tag_patterns:
+    - wholesale
+    - b2b
+    - reseller
+    - trade
+    - business
+  company_field_required: false   # set true to require a non-null company on the address
+  min_order_amount_for_b2b_flag: null  # set a number (e.g. 500) to flag high-AOV customers
