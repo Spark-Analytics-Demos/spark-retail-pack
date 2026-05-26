@@ -1,0 +1,102 @@
+version: 2
+
+sources:
+  - name: meta_ads
+    description: "Meta Ads (Facebook + Instagram) data landed in the bronze layer by the ingestion tool."
+    database: RAW_RETAIL
+    schema: META_ADS
+    meta:
+      owner: analytics_engineering
+      source_system: meta_ads
+      classification: bronze
+    # Meta Ads spend is in the ad account's currency, converted to reporting currency in staging.
+    # Meta stores budget amounts in cents; staging divides by 100.
+    # Freshness reflects the 12–24h daily batch latency (§8.8).
+
+    tables:
+      - name: daily_insights
+        description: "Daily spend and performance metrics per ad/ad_set/campaign. Primary source for fact_marketing_spend."
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: date_start
+        columns:
+          - name: date_start
+            description: "Reporting date for this insight row."
+            tests:
+              - not_null
+          - name: campaign_id
+            tests:
+              - not_null
+          - name: spend
+            description: "Total spend for this date/campaign in the ad account's currency."
+            tests:
+              - not_null
+          - name: impressions
+            tests:
+              - not_null
+          - name: clicks
+            tests:
+              - not_null
+
+      - name: campaigns
+        description: "Campaign master — one row per campaign. Primary source for dim_marketing_campaign."
+        columns:
+          - name: id
+            description: "Meta campaign ID."
+            tests:
+              - not_null
+              - unique
+          - name: name
+            tests:
+              - not_null
+          - name: objective
+            description: "Campaign objective (e.g. CONVERSIONS, REACH, TRAFFIC)."
+            tests:
+              - not_null
+          - name: status
+            description: "Campaign status: ACTIVE, PAUSED, DELETED, ARCHIVED."
+            tests:
+              - not_null
+          - name: account_id
+            tests:
+              - not_null
+
+      - name: ad_sets
+        description: "Ad set master — one row per ad set. Denormalized into dim_marketing_campaign."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: campaign_id
+            description: "FK to campaigns.id."
+            tests:
+              - not_null
+          - name: name
+            tests:
+              - not_null
+          - name: status
+            tests:
+              - not_null
+
+      - name: ads
+        description: "Individual ad metadata. Denormalized into dim_marketing_campaign where stable."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: campaign_id
+            tests:
+              - not_null
+          - name: adset_id
+            description: "FK to ad_sets.id."
+            tests:
+              - not_null
+          - name: name
+            tests:
+              - not_null
+          - name: status
+            tests:
+              - not_null

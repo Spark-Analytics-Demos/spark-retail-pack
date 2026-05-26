@@ -1,0 +1,25 @@
+source: klaviyo
+mapping_type: overrides
+
+event_name_mappings:
+  # Canonical event type mappings for standard Klaviyo events are built into the macro.
+  # Add entries here for custom Klaviyo events your client has defined.
+  custom_events: []
+  # Example:
+  # custom_events:
+  #   - klaviyo_name: Viewed Product
+  #     canonical_event_type: product_view
+  #   - klaviyo_name: Added to Cart
+  #     canonical_event_type: cart_add
+
+mpp_filtering:
+  # Apple Mail Privacy Protection pre-fetches email images, inflating open events.
+  # Set to true to filter opens where the user agent matches Apple MPP patterns.
+  # Requires user_agent to be present in event_properties.
+  enabled: false
+
+consent_overrides:
+  # By default, Klaviyo consent status overrides Shopify's accepts_marketing.
+  # Set let_shopify_win: true only if the client manages consent entirely in Shopify
+  # and Klaviyo profiles are imported without accurate consent history.
+  let_shopify_win: false

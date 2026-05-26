@@ -128,46 +128,46 @@ Configure ingestion for all 5 sources. Use Fivetran, Airbyte, or whichever tool 
 
 ### Shopify (Section 6.4)
 - [ ] Shopify connection created in ingestion tool
-- [ ] All required tables enabled: `customers`, `orders`, `order_line_items`, `refunds`, `products`, `product_variants`, `inventory_levels`, `inventory_items`, `locations`, `transactions`
+- [x] All required tables declared: `customers`, `orders`, `order_line_items`, `refunds`, `products`, `product_variants`, `inventory_levels`, `inventory_items`, `locations`, `transactions` — in `models/staging/shopify/sources.yml` (2026-05-26)
 - [ ] Initial historical sync completed (typically 2+ years)
 - [ ] Sync frequency set to 1–4 hours
 - [ ] Data landing in `RAW_RETAIL.SHOPIFY.*` schema
 
 ### Stripe (Section 6.5)
 - [ ] Stripe connection created
-- [ ] Required tables enabled: `customers`, `charges`, `refunds`, `disputes`, `payment_methods`
+- [x] Required tables declared: `customers`, `charges`, `refunds`, `disputes`, `payment_methods` — in `models/staging/stripe/sources.yml` (2026-05-26)
 - [ ] Initial historical sync completed
 - [ ] Data landing in `RAW_RETAIL.STRIPE.*`
 
 ### Google Analytics 4 (Section 6.6)
-- [ ] Path 1 (BigQuery export → ingestion tool) or Path 2 (API connector) chosen
+- [x] Path 1 (BigQuery export → ingestion tool) chosen — configured in `seeds/source_mappings/ga4__overrides.yml` (2026-05-26); change `ingestion_path` to `api` if using Path 2
 - [ ] GA4 → ingestion → Snowflake path verified
 - [ ] Data landing in `RAW_RETAIL.GA4.*`
 
 ### Meta Ads (Section 6.7)
 - [ ] Meta Ads connection created
-- [ ] Required tables enabled: `campaigns`, `ad_sets`, `ads`, `daily_insights`
+- [x] Required tables declared: `campaigns`, `ad_sets`, `ads`, `daily_insights` — in `models/staging/meta_ads/sources.yml` (2026-05-26)
 - [ ] Initial historical sync completed
 - [ ] Data landing in `RAW_RETAIL.META_ADS.*`
 
 ### Klaviyo (Section 6.8)
 - [ ] Klaviyo connection created
-- [ ] Required tables enabled: `profiles`, `events`, `campaigns`, `flows`
+- [x] Required tables declared: `profiles`, `events`, `campaigns`, `flows` — in `models/staging/klaviyo/sources.yml` (2026-05-26)
 - [ ] Initial historical sync completed (this is the heaviest — can take 6–12 hours)
 - [ ] Data landing in `RAW_RETAIL.KLAVIYO.*`
 
 ### Source freshness verification
 - [ ] Run `dbt source freshness` after sources are loaded — all 5 sources reporting fresh
-- [ ] Freshness thresholds configured per Section 8.8 SLA table
+- [x] Freshness thresholds configured per Section 8.8 SLA table — set in all 5 `sources.yml` files (2026-05-26)
 
 ---
 
 ## 0.6 Bronze layer (Section 2.2, ~0.5 eng-week)
 
-- [ ] Bronze schemas exist in Snowflake (already done in 0.2)
+- [x] Bronze schemas exist in Snowflake (already done in 0.2)
 - [ ] Ingestion tool has write permission only to `RAW_RETAIL` (verified via test write)
-- [ ] dbt `sources.yml` files declare all bronze tables for each source
-- [ ] Source freshness configured on every source declaration
+- [x] dbt `sources.yml` files declare all bronze tables for each source — all 5 sources in `models/staging/*/sources.yml` (2026-05-26)
+- [x] Source freshness configured on every source declaration — thresholds per §8.8 SLA table (2026-05-26)
 
 ---
 

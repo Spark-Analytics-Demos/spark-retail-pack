@@ -1,0 +1,18 @@
+source: stripe
+mapping_type: overrides
+
+reconciliation:
+  # Discrepancy threshold between Shopify net_amount and Stripe charge amount.
+  # Differences within tolerance are silently accepted; outside tolerance are logged
+  # to the vw_stripe_shopify_reconciliation diagnostic view.
+  tolerance_pct: 0.5
+
+  # Metadata fields on charges that should NOT be used to link back to Shopify orders.
+  # Add internal/staging field names if your Stripe integration sets non-standard metadata.
+  excluded_metadata_fields: []
+
+direct_charge_handling:
+  # When true, Stripe charges without a metadata.shopify_order_id become synthetic
+  # fact_orders rows with _source_system = 'stripe' and channel = stripe_direct.
+  create_synthetic_orders: true
+  synthetic_channel_id: stripe_direct

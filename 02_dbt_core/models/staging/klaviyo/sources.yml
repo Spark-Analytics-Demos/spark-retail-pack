@@ -1,0 +1,87 @@
+version: 2
+
+sources:
+  - name: klaviyo
+    description: "Klaviyo email and SMS marketing data landed in the bronze layer by the ingestion tool."
+    database: RAW_RETAIL
+    schema: KLAVIYO
+    meta:
+      owner: analytics_engineering
+      source_system: klaviyo
+      classification: bronze
+    # Klaviyo is the primary source of truth for marketing_consent, email_subscribed,
+    # and sms_subscribed — these override Shopify values in int_customer_identity_resolution.
+    # Initial sync for active Klaviyo accounts can take 6–12 hours (high event volume).
+    # Freshness reflects the 1–4h incremental sync cadence (§8.8).
+
+    tables:
+      - name: events
+        description: "Customer engagement events (opens, clicks, bounces, conversions). Primary source for fact_email_engagement."
+        freshness:
+          warn_after: {count: 6, period: hour}
+          error_after: {count: 24, period: hour}
+        loaded_at_field: datetime
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: event_name
+            description: "Klaviyo event name (e.g. Opened Email, Clicked Email, Placed Order)."
+            tests:
+              - not_null
+          - name: profile_id
+            description: "FK to profiles.id."
+            tests:
+              - not_null
+          - name: datetime
+            description: "UTC timestamp when the event occurred."
+            tests:
+              - not_null
+
+      - name: profiles
+        description: "Customer profiles in Klaviyo. Cross-referenced with dim_customer; authoritative for consent status."
+        columns:
+          - name: id
+            description: "Klaviyo profile ID."
+            tests:
+              - not_null
+              - unique
+          - name: created
+            description: "Timestamp when the Klaviyo profile was created."
+            tests:
+              - not_null
+
+      - name: campaigns
+        description: "Email campaign master — one row per one-time campaign send. Primary source for dim_email_campaign (campaign_type = campaign)."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: name
+            tests:
+              - not_null
+          - name: subject
+            description: "Email subject line for this campaign."
+            tests:
+              - not_null
+          - name: status
+            description: "Campaign status: draft, scheduled, sent, cancelled."
+            tests:
+              - not_null
+
+      - name: flows
+        description: "Automated email flow master (welcome series, abandoned cart, etc.). Combined with campaigns into dim_email_campaign (campaign_type = flow)."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: name
+            tests:
+              - not_null
+          - name: status
+            description: "Flow status: draft, manual, live, archived."
+            tests:
+              - not_null

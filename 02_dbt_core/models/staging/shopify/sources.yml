@@ -1,0 +1,199 @@
+version: 2
+
+sources:
+  - name: shopify
+    description: "Shopify Admin API data landed in the bronze layer by the ingestion tool."
+    database: RAW_RETAIL
+    schema: SHOPIFY
+    meta:
+      owner: analytics_engineering
+      source_system: shopify
+      classification: bronze
+    # Tip: replace updated_at with your ETL tool's metadata column (e.g. _fivetran_synced)
+    # for more accurate freshness checks that reflect load time rather than source update time.
+
+    tables:
+      - name: orders
+        description: "Order headers — one row per order. Primary source for fact_orders and fact_order_lines."
+        freshness:
+          warn_after: {count: 6, period: hour}
+          error_after: {count: 24, period: hour}
+        loaded_at_field: updated_at
+        columns:
+          - name: id
+            description: "Shopify order ID."
+            tests:
+              - not_null
+              - unique
+          - name: created_at
+            description: "Timestamp when the order was placed (UTC)."
+            tests:
+              - not_null
+          - name: updated_at
+            description: "Timestamp of last modification (UTC). Used for incremental loads."
+            tests:
+              - not_null
+          - name: financial_status
+            description: "Payment status: pending, authorized, paid, partially_paid, refunded, partially_refunded, voided."
+            tests:
+              - not_null
+              - accepted_values:
+                  values:
+                    - pending
+                    - authorized
+                    - paid
+                    - partially_paid
+                    - refunded
+                    - partially_refunded
+                    - voided
+          - name: total_price
+            description: "Final amount charged to the customer (after discounts and taxes). Maps to fact_orders.net_amount."
+            tests:
+              - not_null
+          - name: currency
+            description: "ISO 4217 currency code for this order."
+            tests:
+              - not_null
+          - name: test
+            description: "TRUE for test orders placed by the merchant. Filtered out in staging by default."
+
+      - name: customers
+        description: "Customer profiles — one row per registered customer. Primary source for dim_customer."
+        freshness:
+          warn_after: {count: 6, period: hour}
+          error_after: {count: 24, period: hour}
+        loaded_at_field: updated_at
+        columns:
+          - name: id
+            description: "Shopify customer ID."
+            tests:
+              - not_null
+              - unique
+          - name: created_at
+            tests:
+              - not_null
+          - name: updated_at
+            tests:
+              - not_null
+          - name: email
+            description: "Customer email address. Nullable for customers created without email."
+          - name: accepts_marketing
+            description: "TRUE if customer has opted into email marketing."
+            tests:
+              - not_null
+
+      - name: order_line_items
+        description: "One row per line item per order. Primary source for fact_order_lines."
+        columns:
+          - name: id
+            description: "Shopify line item ID."
+            tests:
+              - not_null
+              - unique
+          - name: order_id
+            description: "FK to orders.id."
+            tests:
+              - not_null
+          - name: quantity
+            tests:
+              - not_null
+          - name: price
+            description: "Unit price at the time of sale."
+            tests:
+              - not_null
+
+      - name: refunds
+        description: "Refund events linked to orders. Used to populate fact_refunds and update fact_orders.refunded_amount."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: order_id
+            tests:
+              - not_null
+          - name: created_at
+            tests:
+              - not_null
+
+      - name: products
+        description: "Product master — one row per product (parent). Joined with product_variants to build dim_product."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: updated_at
+            tests:
+              - not_null
+
+      - name: product_variants
+        description: "SKU-level variants — one row per variant. The grain of dim_product."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: product_id
+            description: "FK to products.id."
+            tests:
+              - not_null
+          - name: price
+            tests:
+              - not_null
+
+      - name: inventory_levels
+        description: "Per-location stock quantities. Primary source for fact_inventory_snapshot."
+        columns:
+          - name: inventory_item_id
+            tests:
+              - not_null
+          - name: location_id
+            tests:
+              - not_null
+          - name: available
+            description: "Units available for sale (net of committed)."
+            tests:
+              - not_null
+
+      - name: inventory_items
+        description: "Inventory item metadata (cost, barcode). Joined to product_variants via inventory_item_id."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+
+      - name: locations
+        description: "Warehouse and retail store locations. Primary source for dim_warehouse_location."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: name
+            tests:
+              - not_null
+          - name: active
+            description: "FALSE for archived/closed locations."
+            tests:
+              - not_null
+
+      - name: transactions
+        description: "Payment transaction events per order. Used to populate dim_payment_method."
+        columns:
+          - name: id
+            tests:
+              - not_null
+              - unique
+          - name: order_id
+            tests:
+              - not_null
+          - name: kind
+            description: "Transaction type: sale, refund, void, capture, authorization."
+            tests:
+              - not_null
+          - name: status
+            description: "Transaction outcome: success, failure, error, pending."
+            tests:
+              - not_null
