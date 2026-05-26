@@ -117,7 +117,7 @@ Document the decisions in a new file `PHASE_0_DECISIONS.md` at the repo root. Th
   - [ ] Python tests for demo generator — deferred to Phase 3 (generator not yet written)
 - [x] CI uses `SVC_DBT` service account with `RETAIL_TRANSFORMER` role (dedicated `SVC_CI` account optional for Phase 1)
 - [x] CI secrets configured — all 6 secrets set via GitHub API (2026-05-26)
-- [ ] Branch protection rules on `main` — blocked: requires GitHub Pro or public repo. Set once repo is public or plan upgraded.
+- [x] Branch protection rules on `main` — set (2026-05-26). Repo made public to enable this on the free plan. Required checks: `Lint (SQL + YAML)` and `dbt deps → parse → build`. Require 1 review. No force-push or deletion.
 - [ ] CI failure alerts — deferred; add Slack webhook in Phase 1 when first real build runs
 
 ---
