@@ -1,0 +1,70 @@
+# =============================================================================
+# dbt Deploy — runs on every merge to main
+# Section 4 Part 3 §4.44 | PHASE_0_CHECKLIST §0.4
+#
+# Builds all dbt models against the staging environment, then saves the
+# resulting manifest so the CI workflow can use state:modified+ comparisons.
+#
+# Phase 0 note: targets 'staging' (password auth). Migrate to 'prod' with
+# RSA key-pair auth (SNOWFLAKE_PRIVATE_KEY_PATH secret) in Phase 1 once
+# key-pair is configured for SVC_DBT.
+#
+# Secrets required (same as CI plus the deploy account):
+#   SNOWFLAKE_ACCOUNT    Account identifier
+#   SNOWFLAKE_USER       Deploy service account username (SVC_DBT)
+#   SNOWFLAKE_PASSWORD   Deploy service account password
+#   PII_HASH_SALT        Must match all other environments
+# =============================================================================
+
+name: dbt Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '02_dbt_core/**'
+
+jobs:
+  deploy:
+    name: dbt build → staging
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 02_dbt_core
+
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      PII_HASH_SALT: ${{ secrets.PII_HASH_SALT }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dbt
+        run: pip install -r requirements.txt
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt build (staging)
+        run: dbt build --target staging
+
+      # Save the manifest so CI can use state:modified+ on pull requests.
+      # The cache key is fixed ('dbt-manifest-main') so CI always restores
+      # the most recent successful staging build.
+      - name: Save manifest for CI state comparison
+        if: success()
+        run: mkdir -p state && cp target/manifest.json state/manifest.json
+
+      - name: Update manifest cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: 02_dbt_core/state/
+          key: dbt-manifest-main

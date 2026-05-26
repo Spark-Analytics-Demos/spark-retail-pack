@@ -1,0 +1,9 @@
+# Ignore dbt package files (third-party code we don't own)
+dbt_packages/
+
+# Ignore compiled output
+target/
+
+# Macros use complex Jinja that jinja templater cannot resolve cleanly.
+# Macro correctness is verified by dbt parse/compile, not SQLFluff.
+macros/

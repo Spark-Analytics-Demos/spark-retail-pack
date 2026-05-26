@@ -12,8 +12,8 @@
 # =============================================================================
 
 # Core dbt
-dbt-core==1.8.0
-dbt-snowflake==1.8.0
+dbt-core==1.9.0
+dbt-snowflake==1.9.4
 
 # SQL linting (used in CI, optional for local dev)
 sqlfluff==3.0.7

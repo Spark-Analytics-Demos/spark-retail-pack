@@ -1,0 +1,129 @@
+# =============================================================================
+# dbt CI — runs on every pull request targeting main
+# Section 4 Part 3 §4.44 | PHASE_0_CHECKLIST §0.4
+#
+# Two jobs run in parallel:
+#   lint       — SQLFluff (SQL) + yamllint (YAML). Fast, no Snowflake needed.
+#   dbt-checks — deps → parse → build (state:modified+ when manifest exists).
+#
+# Secrets required (set in GitHub repo Settings → Secrets → Actions):
+#   SNOWFLAKE_ACCOUNT      Account identifier, e.g. RYXGDWD-FPB13834
+#   SNOWFLAKE_CI_USER      CI service account username (SVC_DBT for Phase 0)
+#   SNOWFLAKE_CI_PASSWORD  CI service account password
+#   PII_HASH_SALT          Must match the value used in all environments
+# =============================================================================
+
+name: dbt CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '02_dbt_core/**'
+      - '03_dbt_pro/**'
+      - '.github/workflows/dbt-ci.yml'
+
+# Cancel in-progress runs for the same PR when a new commit is pushed
+concurrency:
+  group: dbt-ci-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Lint — fast feedback, no Snowflake connection needed
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint (SQL + YAML)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for git diff against base branch
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install linters
+        run: pip install sqlfluff==3.0.7 sqlfluff-templater-dbt==3.0.7 yamllint
+
+      - name: SQLFluff lint (changed .sql files only)
+        run: |
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.sql')
+          if [ -z "$CHANGED" ]; then
+            echo "No SQL files changed — skipping SQLFluff."
+          else
+            echo "Linting changed SQL files:"
+            echo "$CHANGED"
+            echo "$CHANGED" | xargs sqlfluff lint --config 02_dbt_core/.sqlfluff
+          fi
+
+      - name: YAML lint (changed .yml files only)
+        run: |
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            -- '*.yml' '*.yaml' | grep -v '^\.github/')
+          if [ -z "$CHANGED" ]; then
+            echo "No YAML files changed — skipping yamllint."
+          else
+            echo "Linting changed YAML files:"
+            echo "$CHANGED"
+            echo "$CHANGED" | xargs yamllint \
+              -d '{extends: relaxed, rules: {line-length: {max: 120}}}'
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Job 2: dbt checks — deps, parse, build against the CI Snowflake schema
+  # ---------------------------------------------------------------------------
+  dbt-checks:
+    name: dbt deps → parse → build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 02_dbt_core
+
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_CI_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_CI_PASSWORD }}
+      PII_HASH_SALT: ${{ secrets.PII_HASH_SALT }}
+      # Used by profiles.yml.template ci target to isolate each PR's schema
+      GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dbt
+        run: pip install -r requirements.txt
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt parse
+        run: dbt parse --target ci
+
+      # Restore the manifest produced by the last successful deploy to main.
+      # Enables state:modified+ to build only changed models and their
+      # downstream dependents — keeps CI fast as the project grows.
+      - name: Restore production manifest (for state comparison)
+        id: manifest-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: 02_dbt_core/state/
+          key: dbt-manifest-main
+
+      - name: dbt build
+        run: |
+          if [ -f state/manifest.json ]; then
+            echo "Manifest found — building state:modified+ models."
+            dbt build --select state:modified+ --state state/ --target ci
+          else
+            echo "No manifest yet (expected on first run) — full build."
+            dbt build --target ci
+          fi
