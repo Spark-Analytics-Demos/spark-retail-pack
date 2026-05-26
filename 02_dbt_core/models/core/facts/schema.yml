@@ -1,0 +1,665 @@
+version: 2
+
+models:
+  # ---------------------------------------------------------------------------
+  # fact_orders
+  # ---------------------------------------------------------------------------
+  - name: fact_orders
+    description: >
+      Order header fact per §4.19. One row per Shopify order. Incremental merge —
+      unique_key=order_id. refunded_amount and net_after_refunds are updated when
+      refunds arrive within the 14-day lookback window. FX-converted to reporting currency.
+      customer_sk is SCD2-aware (dim version at order_timestamp).
+    config:
+      materialized: incremental
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: order_sk
+        description: Surrogate PK — MD5 of order_id.
+        tests: [not_null, unique]
+      - name: order_id
+        description: Natural key — Shopify order ID.
+        tests: [not_null, unique]
+      - name: order_number
+        description: Human-readable order number (e.g., "#1042").
+        tests: [not_null]
+      - name: customer_sk
+        description: FK to dim_customer — SCD2 version active at order_timestamp.
+        tests:
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_sk
+      - name: customer_id
+        description: Degenerate canonical customer ID.
+      - name: channel_sk
+        description: FK to dim_channel — acquisition channel at checkout.
+        tests:
+          - relationships:
+              to: ref('dim_channel')
+              field: channel_sk
+      - name: geography_sk
+        description: FK to dim_geography — shipping country.
+        tests:
+          - relationships:
+              to: ref('dim_geography')
+              field: geography_sk
+      - name: payment_method_sk
+        description: FK to dim_payment_method — primary payment method. NULL if Stripe charge absent.
+        tests:
+          - relationships:
+              to: ref('dim_payment_method')
+              field: payment_method_sk
+      - name: order_date
+        description: Business date of the order in reporting timezone.
+        tests: [not_null]
+      - name: order_timestamp
+        description: Precise order creation timestamp (UTC).
+        tests: [not_null]
+      - name: order_status
+        description: Canonical status — pending, paid, fulfilled, cancelled, refunded, partial_refund.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [pending, paid, fulfilled, cancelled, refunded, partial_refund, unknown]
+      - name: fulfillment_status
+        description: Shopify fulfillment status — unfulfilled, partial, fulfilled, restocked.
+      - name: financial_status
+        description: Shopify financial status — pending, authorized, paid, partially_paid, refunded, partially_refunded, voided.
+        tests: [not_null]
+      - name: gross_amount
+        description: Order value before discounts and refunds, in reporting currency.
+        tests: [not_null]
+      - name: discount_amount
+        description: Total discounts applied, in reporting currency.
+        tests: [not_null]
+      - name: tax_amount
+        description: Total tax, in reporting currency.
+        tests: [not_null]
+      - name: shipping_amount
+        description: Shipping charges, in reporting currency.
+        tests: [not_null]
+      - name: tip_amount
+        description: Tip amount, in reporting currency.
+        tests: [not_null]
+      - name: net_amount
+        description: Final charged amount (gross - discounts + tax + shipping + tip), in reporting currency.
+        tests: [not_null]
+      - name: refunded_amount
+        description: Total refunded to date against this order, in reporting currency.
+        tests: [not_null]
+      - name: net_after_refunds
+        description: net_amount minus refunded_amount, in reporting currency.
+        tests: [not_null]
+      - name: currency_code
+        description: Reporting currency code (from var reporting_currency).
+        tests: [not_null]
+      - name: original_currency_code
+        description: Currency the customer transacted in.
+        tests: [not_null]
+      - name: original_gross_amount
+        description: Gross amount in original currency.
+        tests: [not_null]
+      - name: fx_rate_to_reporting
+        description: FX rate applied — original_currency_code to currency_code.
+        tests: [not_null]
+      - name: line_item_count
+        description: Number of distinct line items in this order.
+        tests: [not_null]
+      - name: total_quantity
+        description: Total units across all line items.
+        tests: [not_null]
+      - name: is_first_order
+        description: TRUE if this is the customer's first order.
+        tests: [not_null]
+      - name: is_repeat_order
+        description: TRUE if the customer placed a prior order.
+        tests: [not_null]
+      - name: is_subscription_order
+        description: TRUE for recurring or subscription orders.
+        tests: [not_null]
+      - name: is_test_order
+        description: TRUE if flagged as a test order in Shopify.
+        tests: [not_null]
+      - name: created_at
+        description: When the order was created (equals order_timestamp).
+        tests: [not_null]
+      - name: updated_at
+        description: Last update from Shopify.
+        tests: [not_null]
+      - name: loaded_at
+        description: When this row was last loaded into the warehouse.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # fact_order_lines
+  # ---------------------------------------------------------------------------
+  - name: fact_order_lines
+    description: >
+      Order line item fact per §4.20. One row per line item per order. Incremental merge —
+      unique_key=line_item_id. unit_cost is SCD2-aware (dim_product version at order_date).
+      refunded_quantity and refunded_amount reflect line-level refunds parsed from
+      stg_shopify__refunds.refund_line_items VARIANT. line_gross_margin is NULL when cost not tracked.
+    config:
+      materialized: incremental
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: line_item_sk
+        description: Surrogate PK — MD5 of line_item_id.
+        tests: [not_null, unique]
+      - name: line_item_id
+        description: Natural key — Shopify line item ID.
+        tests: [not_null, unique]
+      - name: order_sk
+        description: FK to fact_orders.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fact_orders')
+              field: order_sk
+      - name: order_id
+        description: Degenerate order ID.
+        tests: [not_null]
+      - name: customer_sk
+        description: FK to dim_customer — denormalized from fact_orders.
+        tests:
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_sk
+      - name: product_sk
+        description: FK to dim_product — SCD2 version at order_date.
+        tests:
+          - relationships:
+              to: ref('dim_product')
+              field: product_sk
+      - name: sku
+        description: Degenerate SKU.
+      - name: product_title_at_sale
+        description: Product title at the moment of sale — preserved for historical accuracy.
+        tests: [not_null]
+      - name: channel_sk
+        description: FK to dim_channel — denormalized from fact_orders.
+        tests:
+          - relationships:
+              to: ref('dim_channel')
+              field: channel_sk
+      - name: order_date
+        description: Business date — denormalized from fact_orders for partitioning.
+        tests: [not_null]
+      - name: quantity
+        description: Units ordered.
+        tests: [not_null]
+      - name: unit_price
+        description: Price per unit at time of sale (original currency).
+        tests: [not_null]
+      - name: line_subtotal
+        description: quantity * unit_price before discounts, in reporting currency.
+        tests: [not_null]
+      - name: line_discount
+        description: Discounts allocated to this line, in reporting currency.
+        tests: [not_null]
+      - name: line_tax
+        description: Tax allocated to this line, in reporting currency.
+        tests: [not_null]
+      - name: line_net_amount
+        description: line_subtotal - line_discount (excluding tax), in reporting currency.
+        tests: [not_null]
+      - name: line_gross_margin
+        description: line_net_amount - (quantity * unit_cost). NULL when unit_cost not tracked.
+      - name: was_promotional
+        description: TRUE if any discount was applied to this line.
+        tests: [not_null]
+      - name: refunded_quantity
+        description: Units refunded on this line.
+        tests: [not_null]
+      - name: refunded_amount
+        description: Amount refunded on this line, in reporting currency.
+        tests: [not_null]
+      - name: is_returned
+        description: TRUE if any quantity has been refunded/returned.
+        tests: [not_null]
+      - name: currency_code
+        description: Reporting currency code.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # fact_refunds
+  # ---------------------------------------------------------------------------
+  - name: fact_refunds
+    description: >
+      Refund event fact per §4.21. One row per Shopify refund event. Incremental append —
+      unique_key=refund_id. refund_amount parsed from stg_shopify__refunds.refund_transactions VARIANT.
+      refund_category is keyword-based in v1; ML classification is Pro v2. Lookback: 30 days
+      to capture chargebacks that arrive weeks after the original charge.
+    config:
+      materialized: incremental
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: refund_sk
+        description: Surrogate PK — MD5 of refund_id.
+        tests: [not_null, unique]
+      - name: refund_id
+        description: Natural key — Shopify refund ID.
+        tests: [not_null, unique]
+      - name: order_sk
+        description: FK to fact_orders.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('fact_orders')
+              field: order_sk
+      - name: order_id
+        description: Degenerate order ID.
+        tests: [not_null]
+      - name: customer_sk
+        description: FK to dim_customer.
+        tests:
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_sk
+      - name: refund_date
+        description: Date of the refund event.
+        tests: [not_null]
+      - name: refund_timestamp
+        description: Precise refund timestamp.
+        tests: [not_null]
+      - name: refund_type
+        description: full_refund, partial_refund, or chargeback.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [full_refund, partial_refund, chargeback]
+      - name: refund_category
+        description: Standardized reason category — damaged, wrong_item, not_as_described, customer_change_of_mind, quality_issue, late_delivery, other.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [damaged, wrong_item, not_as_described, customer_change_of_mind, quality_issue, late_delivery, other]
+      - name: refund_amount
+        description: Total amount refunded, in reporting currency.
+        tests: [not_null]
+      - name: refund_tax_amount
+        description: Tax portion of the refund (0 in v1 — full allocation is Pro).
+        tests: [not_null]
+      - name: refund_shipping_amount
+        description: Shipping portion of the refund, in reporting currency.
+        tests: [not_null]
+      - name: restocking_fee
+        description: Fees retained by the merchant (0 in v1).
+        tests: [not_null]
+      - name: currency_code
+        description: Reporting currency code.
+        tests: [not_null]
+      - name: processor
+        description: Payment processor — stripe or shopify.
+        tests: [not_null]
+      - name: is_chargeback
+        description: TRUE when originated as a Stripe dispute with reason=fraudulent.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # fact_marketing_spend
+  # ---------------------------------------------------------------------------
+  - name: fact_marketing_spend
+    description: >
+      Daily marketing spend by campaign per §4.22. Aggregated from ad-level to campaign/day grain.
+      Source: Meta Ads daily_insights (v1). Incremental merge — unique_key=[campaign_id, spend_date].
+      campaign_sk is SCD2-aware (dim version at spend_date). Platform-reported conversions
+      retained for reference; canonical attribution uses warehouse UTM matching (§4.22 note).
+    config:
+      materialized: incremental
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: spend_sk
+        description: Surrogate PK — MD5 of campaign_id + spend_date.
+        tests: [not_null, unique]
+      - name: campaign_sk
+        description: FK to dim_marketing_campaign — SCD2 version at spend_date.
+        tests:
+          - relationships:
+              to: ref('dim_marketing_campaign')
+              field: campaign_sk
+      - name: campaign_id
+        description: Degenerate campaign ID (prefixed 'meta_').
+        tests: [not_null]
+      - name: channel_sk
+        description: FK to dim_channel — always paid_social_meta for Meta campaigns.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_channel')
+              field: channel_sk
+      - name: spend_date
+        description: Date of ad spend.
+        tests: [not_null]
+      - name: date_sk
+        description: FK to dim_date — YYYYMMDD integer matching dim_date.date_sk.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: spend_amount
+        description: Total spend for this campaign on this day, in reporting currency.
+        tests: [not_null]
+      - name: currency_code
+        description: Reporting currency code.
+        tests: [not_null]
+      - name: impressions
+        description: Total ad impressions.
+        tests: [not_null]
+      - name: clicks
+        description: Total ad clicks.
+        tests: [not_null]
+      - name: conversions_reported_by_platform
+        description: Platform-attributed conversions (Meta-reported; inflated vs. reality per §4.22).
+      - name: conversion_value_reported_by_platform
+        description: Platform-attributed revenue (Meta-reported).
+
+  # ---------------------------------------------------------------------------
+  # fact_web_sessions
+  # ---------------------------------------------------------------------------
+  - name: fact_web_sessions
+    description: >
+      Web session fact per §4.23. One row per GA4 session. Incremental append — unique_key=session_id.
+      channel_sk resolved via traffic_source + traffic_medium → channel_mapping seed → dim_channel.
+      customer_sk links logged-in sessions via GA4 user_id = dim_customer.customer_id.
+      Cross-device session stitching is a Pro feature; basic login-ID match only in OSS.
+    config:
+      materialized: incremental
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: session_sk
+        description: Surrogate PK — MD5 of session_id.
+        tests: [not_null, unique]
+      - name: session_id
+        description: Natural key — user_pseudo_id concatenated with ga_session_id.
+        tests: [not_null, unique]
+      - name: user_pseudo_id
+        description: GA4 anonymous user identifier.
+        tests: [not_null]
+      - name: customer_sk
+        description: FK to dim_customer — NULL for anonymous sessions.
+        tests:
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_sk
+      - name: customer_id
+        description: Degenerate customer ID — NULL for anonymous sessions.
+      - name: channel_sk
+        description: FK to dim_channel — acquisition channel for this session.
+        tests:
+          - relationships:
+              to: ref('dim_channel')
+              field: channel_sk
+      - name: geography_sk
+        description: FK to dim_geography — session country.
+        tests:
+          - relationships:
+              to: ref('dim_geography')
+              field: geography_sk
+      - name: session_date
+        description: Date the session started.
+        tests: [not_null]
+      - name: session_start_timestamp
+        description: Precise session start time.
+        tests: [not_null]
+      - name: session_duration_seconds
+        description: Length of session in seconds.
+        tests: [not_null]
+      - name: page_views
+        description: Pages viewed in this session.
+        tests: [not_null]
+      - name: events_count
+        description: Total GA4 events in this session.
+        tests: [not_null]
+      - name: has_purchase_event
+        description: TRUE if a purchase event occurred in this session.
+        tests: [not_null]
+      - name: is_new_user
+        description: TRUE if this is the first-ever session for this user_pseudo_id.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # fact_email_engagement
+  # ---------------------------------------------------------------------------
+  - name: fact_email_engagement
+    description: >
+      Email engagement event fact per §4.24. One row per Klaviyo event (sent, delivered,
+      opened, clicked, bounced, unsubscribed, marked_spam, converted). Incremental append —
+      unique_key=event_id. customer_sk resolved via klaviyo_profile_id. email_campaign_sk
+      covers both one-time campaigns (cmp_ prefix) and automated flows (flw_ prefix).
+    config:
+      materialized: incremental
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: event_sk
+        description: Surrogate PK — MD5 of event_id.
+        tests: [not_null, unique]
+      - name: event_id
+        description: Natural key — Klaviyo event ID.
+        tests: [not_null, unique]
+      - name: customer_sk
+        description: FK to dim_customer — current version matched by klaviyo_profile_id.
+        tests:
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_sk
+      - name: email_campaign_sk
+        description: FK to dim_email_campaign — resolved from campaign_id or flow_id.
+        tests:
+          - relationships:
+              to: ref('dim_email_campaign')
+              field: email_campaign_sk
+      - name: event_type
+        description: Canonical event type — delivered, opened, clicked, bounced, unsubscribed, marked_spam, converted.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [sent, delivered, opened, clicked, bounced, unsubscribed, marked_spam, converted, other]
+      - name: event_date
+        description: Date the event occurred.
+        tests: [not_null]
+      - name: event_timestamp
+        description: Precise event timestamp.
+        tests: [not_null]
+      - name: bounce_type
+        description: For bounced events — hard, soft, or block.
+        tests:
+          - accepted_values:
+              values: [hard, soft, block]
+
+  # ---------------------------------------------------------------------------
+  # fact_customer_state_daily
+  # ---------------------------------------------------------------------------
+  - name: fact_customer_state_daily
+    description: >
+      Customer state snapshot fact per §4.25. One row per active customer per day.
+      Incremental merge — unique_key=[customer_id, snapshot_date]. Daily run generates
+      snapshot_date = current_date(). Active = updated within 24 months OR marketing_consent=TRUE.
+      OSS columns 1-18 only; Pro columns (RFM tiers, churn, LTV) are NULL per §11.
+      Retention default: 24 months daily.
+    config:
+      materialized: incremental
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: customer_state_sk
+        description: Surrogate PK — MD5 of customer_id + snapshot_date.
+        tests: [not_null, unique]
+      - name: customer_sk
+        description: FK to dim_customer (current version).
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_sk
+      - name: customer_id
+        description: Degenerate canonical customer ID.
+        tests: [not_null]
+      - name: snapshot_date
+        description: Date of snapshot — always current_date() on daily run.
+        tests: [not_null]
+      - name: days_since_acquisition
+        description: Days since first appearance in any source system.
+        tests: [not_null]
+      - name: lifetime_order_count
+        description: Cumulative non-cancelled orders to date.
+        tests: [not_null]
+      - name: lifetime_revenue
+        description: Cumulative net revenue (net_after_refunds) to date, in reporting currency.
+        tests: [not_null]
+      - name: lifetime_quantity
+        description: Cumulative units purchased to date.
+        tests: [not_null]
+      - name: is_active_30d
+        description: TRUE if customer placed any order in the trailing 30 days.
+        tests: [not_null]
+      - name: is_active_90d
+        description: TRUE if customer placed any order in the trailing 90 days.
+        tests: [not_null]
+      - name: is_new_30d
+        description: TRUE if customer was acquired within the last 30 days.
+        tests: [not_null]
+      - name: is_repeat_customer
+        description: TRUE if lifetime_order_count >= 2.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # fact_inventory_snapshot
+  # ---------------------------------------------------------------------------
+  - name: fact_inventory_snapshot
+    description: >
+      Daily inventory position fact per §4.26. One row per SKU per location per day.
+      Incremental merge — unique_key=[inventory_item_id, location_id, snapshot_date].
+      quantity_on_hand approximated from Shopify available (= on_hand - committed).
+      quantity_committed: NULL in v1 (committed count not in connector scope).
+      days_of_supply: computed from fact_order_lines trailing 28d avg daily units sold.
+      OSS columns 1-14; Pro columns 15-17 (is_low_stock, is_overstock, is_slow_mover) NULL per §11.
+    config:
+      materialized: incremental
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: inventory_snapshot_sk
+        description: Surrogate PK — MD5 of inventory_item_id + location_id + snapshot_date.
+        tests: [not_null, unique]
+      - name: product_sk
+        description: FK to dim_product (current SCD2 version by SKU).
+        tests:
+          - relationships:
+              to: ref('dim_product')
+              field: product_sk
+      - name: sku
+        description: Degenerate SKU.
+      - name: location_sk
+        description: FK to dim_warehouse_location.
+        tests:
+          - relationships:
+              to: ref('dim_warehouse_location')
+              field: location_sk
+      - name: inventory_item_id
+        description: Degenerate Shopify inventory item ID — part of the incremental merge key.
+        tests: [not_null]
+      - name: location_id
+        description: Degenerate Shopify location ID.
+        tests: [not_null]
+      - name: snapshot_date
+        description: Date of the inventory snapshot.
+        tests: [not_null]
+      - name: quantity_on_hand
+        description: Physical stock — approximated as Shopify available in v1.
+      - name: quantity_committed
+        description: Reserved for unfulfilled orders — NULL in v1.
+      - name: quantity_available
+        description: Available to sell — Shopify available field.
+      - name: quantity_incoming
+        description: Inbound from purchase orders (Shopify incoming field).
+      - name: is_out_of_stock
+        description: TRUE when quantity_available <= 0.
+        tests: [not_null]
+      - name: is_low_stock
+        description: Pro feature — NULL in OSS (days_of_supply < 14).
+      - name: is_overstock
+        description: Pro feature — NULL in OSS (days_of_supply > 90).
+      - name: is_slow_mover
+        description: Pro feature — NULL in OSS (no sales in last 60 days).
+
+  # ---------------------------------------------------------------------------
+  # fact_inventory_movements
+  # ---------------------------------------------------------------------------
+  - name: fact_inventory_movements
+    description: >
+      Inventory movement event fact per §4.27. One row per movement event. Incremental append —
+      unique_key=movement_id. v1 derives 'sale' movements from fact_order_lines and 'return'
+      movements from fact_refunds. location_sk is NULL — fulfillment location requires
+      stg_shopify__fulfillments (Phase 2). Receipt, adjustment, transfer types require
+      stg_shopify__inventory_adjustments (Phase 2).
+    config:
+      materialized: incremental
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: movement_sk
+        description: Surrogate PK — MD5 of movement_id.
+        tests: [not_null, unique]
+      - name: movement_id
+        description: Natural key — 'sale_' + line_item_id or 'return_' + refund_id + '_' + line_item_id.
+        tests: [not_null, unique]
+      - name: product_sk
+        description: FK to dim_product.
+        tests:
+          - relationships:
+              to: ref('dim_product')
+              field: product_sk
+      - name: sku
+        description: Degenerate SKU.
+      - name: location_sk
+        description: FK to dim_warehouse_location — NULL in v1 (no fulfillment location data).
+      - name: movement_date
+        description: Date the movement occurred.
+        tests: [not_null]
+      - name: movement_timestamp
+        description: Precise movement timestamp.
+        tests: [not_null]
+      - name: movement_type
+        description: sale or return in v1. Full set in v2 — receipt, adjustment, transfer_in, transfer_out, damaged, lost.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [receipt, sale, return, adjustment, transfer_in, transfer_out, damaged, lost]
+      - name: quantity_change
+        description: Signed quantity — negative for outflows (sales), positive for inflows (returns, receipts).
+        tests: [not_null]
