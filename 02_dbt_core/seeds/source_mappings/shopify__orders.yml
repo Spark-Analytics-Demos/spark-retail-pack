@@ -1,0 +1,54 @@
+source: shopify
+source_table: orders
+target_model: stg_shopify__orders
+
+required_fields:
+  - id
+  - created_at
+  - updated_at
+  - total_price
+  - financial_status
+  - currency
+
+optional_fields:
+  - cart_token
+  - tags
+  - note
+  - source_name
+  - landing_site
+  - landing_site_ref
+  - note_attributes
+
+field_mappings:
+  order_id: id
+  order_number: name
+  customer_email: email
+  order_timestamp: created_at
+  gross_amount: subtotal_price
+  net_amount: total_price
+  tax_amount: total_tax
+  shipping_amount: total_shipping_price_set.shop_money.amount
+  discount_amount: total_discounts
+  currency_code: currency
+  financial_status: financial_status
+  fulfillment_status: fulfillment_status
+  cart_id: cart_token
+
+filters:
+  exclude_test_orders: true    # filters rows where test = true or tags contains 'test'
+  exclude_archived: false
+  min_created_at: '2020-01-01'
+
+transformations:
+  customer_email:
+    - lowercase
+    - trim
+  order_status:
+    map_values:
+      paid: paid
+      partially_paid: pending
+      pending: pending
+      authorized: pending
+      refunded: refunded
+      partially_refunded: partial_refund
+      voided: cancelled

@@ -1,0 +1,25 @@
+source: shopify
+source_table: orders
+mapping_type: channel_overrides
+
+# Maps Shopify source_name values to canonical channel IDs.
+# Default mappings are built into the apply_source_mapping macro.
+# Add entries here for custom channels (e.g. TikTok Shop, headless storefronts).
+
+channel_mappings:
+  - source_name: web
+    canonical_channel_id: online_store
+    channel_category: online_store
+  - source_name: pos
+    canonical_channel_id: point_of_sale
+    channel_category: retail
+  - source_name: shopify_draft_orders
+    canonical_channel_id: draft_order
+    channel_category: direct_sales
+  - source_name: shop-app
+    canonical_channel_id: shopify_shop_app
+    channel_category: online_store
+  # Example custom entry — uncomment and adjust for your client:
+  # - source_name: tiktok-shop
+  #   canonical_channel_id: marketplace_tiktok
+  #   channel_category: marketplace

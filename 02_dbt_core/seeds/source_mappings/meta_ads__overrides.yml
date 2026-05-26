@@ -1,0 +1,21 @@
+source: meta_ads
+mapping_type: overrides
+
+# Granularity of insights data to pull: 'campaign', 'ad_set', or 'ad'.
+# 'ad' is the most granular and is the default. Clients with >10K active ads
+# may want 'ad_set' for query performance.
+granularity: ad
+
+campaign_name_parsing:
+  # Attempt to extract utm_campaign from campaign names using a regex pattern.
+  # Useful when UTM parameters are embedded in campaign names rather than tracking templates.
+  enabled: false
+  # Example pattern for names like "2026-Q2_BlackFriday_Conversion_US":
+  # pattern: '(?P<year>\d{4})?[-_]?(?P<quarter>Q\d)?[-_]?(?P<theme>\w+)[-_]?(?P<objective>\w+)'
+  pattern: null
+
+reconciliation:
+  # Alert thresholds for platform-reported vs. warehouse-attributed conversion ratios.
+  # Meta typically over-reports by 2–4×; set thresholds to match your client's expectations.
+  platform_vs_warehouse_conversion_ratio_warn_threshold: 3.0
+  platform_vs_warehouse_conversion_ratio_error_threshold: 10.0
