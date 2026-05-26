@@ -1,0 +1,278 @@
+version: 2
+
+models:
+  - name: int_customer_identity_resolution
+    description: >
+      Three-tier customer identity resolution across Shopify, Stripe, and Klaviyo per ADR-003
+      and §4.3. Produces one row per resolved customer. Tier 1 matches on email hash (high
+      confidence), Tier 2 on phone hash (high confidence), Tier 3 on fuzzy name+address via
+      EDITDISTANCE (medium confidence, gated by var fuzzy_matching_enabled). Tier 3 only
+      produces meaningful matches when pii_masking_enabled=false. Feeds snap_customer which
+      feeds dim_customer.
+    config:
+      materialized: ephemeral
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: true
+    columns:
+      - name: customer_id
+        description: >
+          Canonical customer key — SHA-256 hash of the normalized primary email (Tier 1), or
+          ph_ + phone_hash (Tier 2 with no email), or source_system + source_id (unmatched).
+          Stable across dbt runs for email-matched customers.
+        tests:
+          - not_null
+          - unique
+      - name: shopify_customer_id
+        description: Shopify customer ID for this resolved customer. NULL if not found in Shopify.
+      - name: stripe_customer_id
+        description: Stripe customer ID for this resolved customer. NULL if not found in Stripe.
+      - name: klaviyo_profile_id
+        description: Klaviyo profile ID for this resolved customer. NULL if not found in Klaviyo.
+      - name: email_hash
+        description: SHA-256 hash of normalized email. Equals customer_id for Tier-1 matches.
+      - name: phone_hash
+        description: SHA-256 hash of normalized phone. Source priority Shopify > Stripe > Klaviyo.
+      - name: first_name_hash
+        description: >
+          SHA-256 hash of first name (plaintext when pii_masking_enabled=false).
+          Shopify preferred, fallback to Klaviyo.
+      - name: last_name_hash
+        description: >
+          SHA-256 hash of last name (plaintext when pii_masking_enabled=false).
+          Shopify preferred, fallback to Klaviyo.
+      - name: customer_status
+        description: >
+          Customer status from Shopify — active, blocked, or unknown. NULL when customer
+          only appears in Stripe or Klaviyo.
+      - name: is_b2b_customer
+        description: >
+          TRUE if Shopify tags or company field indicate B2B. Always false for non-Shopify
+          customers.
+        tests:
+          - not_null
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country code from Shopify default_address.
+      - name: province_code
+        description: Province or state code from Shopify default_address.
+      - name: postal_code_hash
+        description: >
+          SHA-256 hash of postal code from Shopify (plaintext when pii_masking_enabled=false).
+          Used as geographic anchor for Tier-3 fuzzy matching.
+      - name: company
+        description: Company name from Shopify default_address, unmasked.
+      - name: customer_tags_raw
+        description: Comma-separated customer tags from Shopify.
+      - name: email_subscribed
+        description: Email marketing subscription status. Klaviyo wins over Shopify.
+        tests:
+          - not_null
+      - name: sms_subscribed
+        description: SMS marketing subscription status. Klaviyo wins over Shopify.
+        tests:
+          - not_null
+      - name: marketing_consent
+        description: TRUE if subscribed to any marketing channel. Klaviyo wins over Shopify.
+        tests:
+          - not_null
+      - name: source_systems
+        description: Array of source systems this customer was observed in.
+        tests:
+          - not_null
+      - name: identity_resolution_method
+        description: >
+          How the customer was resolved — email, phone, fuzzy_name_address, or unmatched.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['email', 'phone', 'fuzzy_name_address', 'unmatched']
+      - name: match_confidence
+        description: Confidence of the identity match — high for Tier 1/2, medium for Tier 3.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['high', 'medium']
+      - name: acquisition_source_system
+        description: Source system where this customer was first observed (earliest created_at).
+      - name: acquisition_date
+        description: Date of earliest customer record across all sources.
+      - name: created_at
+        description: Earliest created_at across all source records for this customer.
+        tests:
+          - not_null
+      - name: updated_at
+        description: Latest updated_at across all source records for this customer.
+        tests:
+          - not_null
+
+  - name: int_orders_enriched
+    description: >
+      Order-level enrichment for fact_orders per §4.19. Adds is_first_order, is_repeat_order,
+      line_item_count, and total_quantity. Grain is one row per order_id. Joins stg_shopify__orders
+      to stg_shopify__order_line_items. Anonymous orders (null shopify_customer_id) default
+      is_first_order and is_repeat_order to false.
+    config:
+      materialized: ephemeral
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: order_id
+        description: Shopify order ID — natural join key to stg_shopify__orders.
+        tests:
+          - not_null
+          - unique
+      - name: line_item_count
+        description: Number of distinct line items in this order. 0 for orders with no line items.
+        tests:
+          - not_null
+      - name: total_quantity
+        description: Sum of quantity across all line items. 0 for orders with no line items.
+        tests:
+          - not_null
+      - name: is_first_order
+        description: >
+          TRUE if this is the earliest order for the customer by order_date then order_timestamp.
+          FALSE for anonymous orders (no shopify_customer_id).
+        tests:
+          - not_null
+      - name: is_repeat_order
+        description: >
+          TRUE if the customer placed at least one prior order. Inverse of is_first_order.
+          FALSE for anonymous orders.
+        tests:
+          - not_null
+
+  - name: int_ga4_session_aggregation
+    description: >
+      Aggregates GA4 events from event-grain to session-grain per §6.6. One row per
+      user_pseudo_id + ga_session_id. Computes session timing, engagement, page counts,
+      landing/exit pages, and purchase event presence. Sessions with events_count = 1 and
+      session_duration_seconds = 0 are flagged as is_bot_session but retained.
+      Feeds fact_web_sessions.
+    config:
+      materialized: ephemeral
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: session_id
+        description: Composite session key — user_pseudo_id || '_' || ga_session_id.
+        tests:
+          - not_null
+          - unique
+      - name: user_pseudo_id
+        description: GA4 device-scoped pseudonymous user ID.
+        tests:
+          - not_null
+      - name: ga_session_id
+        description: GA4 session ID (scoped to user_pseudo_id).
+        tests:
+          - not_null
+      - name: user_id
+        description: >
+          Site-set logged-in user ID. NULL for anonymous sessions. When present, used to
+          join this session to dim_customer.
+      - name: session_date
+        description: Date of the first event in the session.
+        tests:
+          - not_null
+      - name: session_start_timestamp
+        description: Timestamp of the first event in the session.
+        tests:
+          - not_null
+      - name: session_end_timestamp
+        description: Timestamp of the last event in the session.
+        tests:
+          - not_null
+      - name: session_duration_seconds
+        description: Seconds between first and last event. 0 for single-event sessions.
+        tests:
+          - not_null
+      - name: engagement_time_seconds
+        description: Sum of engagement_time_msec across events, converted to seconds.
+        tests:
+          - not_null
+      - name: events_count
+        description: Total number of events in the session.
+        tests:
+          - not_null
+      - name: page_views
+        description: Count of page_view events in the session.
+        tests:
+          - not_null
+      - name: device_category
+        description: Device type — desktop, mobile, tablet, or null.
+      - name: device_os
+        description: Operating system of the device.
+      - name: browser
+        description: Browser name.
+      - name: traffic_source
+        description: GA4 traffic_source.source.
+      - name: traffic_medium
+        description: GA4 traffic_source.medium.
+      - name: traffic_campaign
+        description: GA4 traffic_source.name (campaign name).
+      - name: geo_country
+        description: Country from GA4 geo struct.
+      - name: geo_region
+        description: Region from GA4 geo struct.
+      - name: landing_page
+        description: page_location of the first page_view event in the session. NULL if no page views.
+      - name: exit_page
+        description: page_location of the last page_view event in the session. NULL if no page views.
+      - name: has_purchase_event
+        description: TRUE if the session contains at least one purchase event.
+        tests:
+          - not_null
+      - name: transaction_id
+        description: GA4 ecommerce transaction_id from the purchase event. NULL if no purchase.
+      - name: transaction_revenue
+        description: Sum of purchase_value on purchase events. 0 if no purchases.
+      - name: purchase_currency
+        description: Currency code from the purchase event. NULL if no purchase.
+      - name: is_new_user
+        description: TRUE if any event in the session carries is_new_user = true.
+        tests:
+          - not_null
+      - name: is_bot_session
+        description: >
+          TRUE when events_count = 1 and session_duration_seconds = 0 — indicates likely
+          bot or invalid session. Retained in the model; filter downstream as needed.
+        tests:
+          - not_null
+
+  - name: int_fx_rates_daily
+    description: >
+      Cleaned FX rate reference from seeds/fx_rates.csv. One row per from_currency,
+      to_currency, rate_date — quarterly rates for major currencies (EUR, GBP, CAD, AUD, KES)
+      and annual rates for emerging markets (NGN, ZAR, INR, BRL, MXN). All rates are X → USD.
+      For daily resolution use the daily_fx_rate() macro which applies nearest-prior-date
+      step-function lookup. This model exists for DAG lineage and direct JOIN use by downstream
+      core models.
+    config:
+      materialized: ephemeral
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: from_currency
+        description: ISO 4217 source currency code, uppercased.
+        tests:
+          - not_null
+      - name: to_currency
+        description: ISO 4217 target currency code, uppercased. Always the reporting currency (USD by default).
+        tests:
+          - not_null
+      - name: rate_date
+        description: Effective date of the rate — use nearest-prior-date logic for daily resolution.
+        tests:
+          - not_null
+      - name: rate
+        description: Exchange rate — multiply source amount by this value to get reporting currency amount.
+        tests:
+          - not_null
