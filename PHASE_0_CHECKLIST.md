@@ -239,6 +239,9 @@ Salt generated and stored in `.env` (gitignored) and GitHub Actions secret `PII_
 **2026-05-26 — CI uses `SVC_DBT` for Phase 0**
 No dedicated `SVC_CI` account exists yet. `SVC_DBT` has `RETAIL_TRANSFORMER` and sufficient privileges. Create a dedicated CI account in Phase 1 if audit separation is required.
 
+**2026-05-26 — PII hash salt rotated; old salt remains in git history (standing note)**
+The original PII hash salt (`c19288b15753a0db947d1074c98030e0dc0089cbcd33107c6bc0c1c8ad95284c`) was written into `PHASE_0_CHECKLIST.md` and committed before the repo was made public. It is permanently visible in commits `1104129` through `a4d5dc0`. Action taken: salt rotated immediately; new value stored in `.env` (gitignored) and GitHub Actions secret `PII_HASH_SALT`. No re-hashing of production data required — Phase 0 has no live models and no real PII was ever processed with the old salt. **Do not reuse the old salt** even for dev/test purposes.
+
 ### Manual steps required (cannot be automated without gh CLI)
 
 **GitHub Secrets** — set in repo Settings → Secrets and variables → Actions:
