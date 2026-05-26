@@ -263,4 +263,5 @@ The original PII hash salt (`c19288b15753a0db947d1074c98030e0dc0089cbcd33107c6bc
 
 ### Candidate ADRs
 
-_(Add as Phase 0 progresses — design gaps that need formal decisions)_
+**Candidate ADR — `apply_source_mapping` macro: how are YAML override files consumed?**
+`seeds/source_mappings/*.yml` are documented in Section 6.2 as YAML files "read at build time by the `apply_source_mapping` macro." However, dbt's seed runner only processes `.csv` files; YAML files in `seeds/` are silently ignored. The macro (Phase 1) must decide: (a) convert the YAML files to CSV seeds loaded as Snowflake tables and query them at runtime, (b) convert them to `dbt_project.yml` vars, or (c) ship them as documentation-only templates with mapping logic hardcoded in the macro. Decision needed before implementing `apply_source_mapping` in Phase 1.
