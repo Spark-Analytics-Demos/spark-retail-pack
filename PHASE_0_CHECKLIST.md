@@ -185,9 +185,9 @@ Configure ingestion for all 5 sources. Use Fivetran, Airbyte, or whichever tool 
 Phase 0 is **done** when **all** of these are true:
 
 - [ ] All checkboxes above are checked
-- [ ] `dbt build` succeeds in CI on a fresh branch with no model changes (i.e., the scaffolding itself is healthy)
-- [ ] All 5 source freshness checks pass
-- [ ] At least one team member can deploy a trivial model change end-to-end (PR → CI → merge → CD)
+- [x] `dbt build` succeeds in CI on a fresh branch with no model changes — validated via `feat/phase-0-ci-validation` (2026-05-26)
+- [ ] All 5 source freshness checks pass — deferred; requires live source connectors (Fivetran/Airbyte)
+- [x] At least one team member can deploy a trivial model change end-to-end (PR → CI → merge → CD) — completed (2026-05-26)
 
 When the gate is met, update the project status to **Phase 1 (Canonical core)** and begin work per Section 12.4 Phase 1.
 
