@@ -50,6 +50,7 @@ CREATE ROLE IF NOT EXISTS RETAIL_FINANCE_VIEWER
 -- Grant SYSADMIN to RETAIL_ADMIN so retail admins get full warehouse control.
 -- -----------------------------------------------------------------------------
 
+-- All custom roles granted up to SYSADMIN so any SYSADMIN user can assume them.
 GRANT ROLE RETAIL_LOADER        TO ROLE SYSADMIN;
 GRANT ROLE RETAIL_TRANSFORMER   TO ROLE SYSADMIN;
 GRANT ROLE RETAIL_ANALYST       TO ROLE SYSADMIN;
@@ -57,5 +58,6 @@ GRANT ROLE RETAIL_BI_READER     TO ROLE SYSADMIN;
 GRANT ROLE RETAIL_PII_VIEWER    TO ROLE SYSADMIN;
 GRANT ROLE RETAIL_FINANCE_VIEWER TO ROLE SYSADMIN;
 GRANT ROLE RETAIL_ADMIN         TO ROLE SYSADMIN;
-
-GRANT ROLE SYSADMIN TO ROLE RETAIL_ADMIN;
+-- Note: engineers who need warehouse-admin capabilities are granted SYSADMIN
+-- directly on their user (via 05_service_accounts.sql or Snowsight), not via
+-- a circular SYSADMIN→RETAIL_ADMIN grant which Snowflake disallows.
