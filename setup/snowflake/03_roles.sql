@@ -47,7 +47,8 @@ CREATE ROLE IF NOT EXISTS RETAIL_FINANCE_VIEWER
 -- -----------------------------------------------------------------------------
 -- Role hierarchy grants
 -- Grant all custom roles to SYSADMIN so the admin can assume any role.
--- Grant SYSADMIN to RETAIL_ADMIN so retail admins get full warehouse control.
+-- Note: SYSADMIN is NOT granted to RETAIL_ADMIN (would create a cycle).
+-- Engineers needing account-level ops use SYSADMIN/ACCOUNTADMIN directly.
 -- -----------------------------------------------------------------------------
 
 -- All custom roles granted up to SYSADMIN so any SYSADMIN user can assume them.

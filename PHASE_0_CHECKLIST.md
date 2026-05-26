@@ -31,7 +31,7 @@ Document the decisions in a new file `PHASE_0_DECISIONS.md` at the repo root. Th
 - [x] Snowflake account created in the chosen region — account `RYXGDWD-FPB13834`, region `AWS_US_WEST_2`
 - [ ] Multi-factor authentication enabled for the admin account
 - [x] Account identifier and credentials securely stored — in `.env` (gitignored); migrate to secrets manager before sharing with team
-- [ ] Cost monitoring dashboard configured per Section 4 Part 3 §4.46 — resource monitors created (01-05-2026); Snowsight cost dashboard not yet configured
+- [ ] Cost monitoring dashboard configured per Section 4 Part 3 §4.46 — resource monitors created (2026-05-26); Snowsight cost dashboard not yet configured
 
 ### Databases
 - [x] `RAW_RETAIL` database created (bronze layer)
