@@ -26,6 +26,7 @@ logs/
 *.duckdb            # local DuckDB caches if used for offline dev
 
 # dbt artifacts that should NOT be checked in
+**/.user.yml          # dbt local anonymous usage ID — machine-specific
 **/manifest.json
 **/catalog.json
 **/run_results.json
