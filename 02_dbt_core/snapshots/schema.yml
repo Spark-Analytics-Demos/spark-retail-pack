@@ -1,0 +1,232 @@
+version: 2
+
+snapshots:
+  - name: snap_customer
+    description: >
+      SCD2 history of resolved customer identity records per §4.36. One row per customer_id
+      per change period. Tracks key PII-adjacent attributes and marketing consent using
+      dbt's check strategy — a new row is inserted whenever any check_col changes.
+      Source is int_customer_identity_resolution. Feeds dim_customer via current-record
+      filter on dbt_valid_to IS NULL.
+    config:
+      target_schema: snapshots
+      strategy: check
+      unique_key: customer_id
+      check_cols:
+        - email_hash
+        - phone_hash
+        - customer_status
+        - country_code
+        - marketing_consent
+        - email_subscribed
+        - sms_subscribed
+        - is_b2b_customer
+      invalidate_hard_deletes: false
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: true
+    columns:
+      - name: customer_id
+        description: >
+          Canonical customer key from int_customer_identity_resolution. SHA-256 of normalized
+          email (Tier 1), ph_ + phone_hash (Tier 2), or source_system + source_id (unmatched).
+        tests:
+          - not_null
+      - name: dbt_scd_id
+        description: dbt-generated surrogate key for this specific SCD2 row.
+        tests:
+          - not_null
+          - unique
+      - name: dbt_updated_at
+        description: Timestamp when dbt last evaluated this record.
+        tests:
+          - not_null
+      - name: dbt_valid_from
+        description: Timestamp when this version of the record became active.
+        tests:
+          - not_null
+      - name: dbt_valid_to
+        description: >
+          Timestamp when this version was superseded. NULL for the current active record.
+
+  - name: snap_product
+    description: >
+      SCD2 history of product variants per §4.36. One row per variant_id per change period.
+      Uses timestamp strategy on the derived updated_at (greatest of variant and product
+      updated_at). Source is a JOIN of stg_shopify__product_variants,
+      stg_shopify__products, and stg_shopify__inventory_items. Feeds dim_product via
+      current-record filter on dbt_valid_to IS NULL. Natural key is sku but sku can be
+      null — variant_id is used as unique_key.
+    config:
+      target_schema: snapshots
+      strategy: timestamp
+      unique_key: variant_id
+      updated_at: updated_at
+      invalidate_hard_deletes: false
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: variant_id
+        description: Shopify product variant ID — unique_key for this snapshot.
+        tests:
+          - not_null
+      - name: product_id
+        description: Shopify product ID — parent of this variant.
+        tests:
+          - not_null
+      - name: sku
+        description: Stock-keeping unit. May be null for variants without a SKU configured.
+      - name: variant_title
+        description: Variant title (e.g. "Blue / Large"). NULL for single-variant products.
+      - name: barcode
+        description: Variant barcode (EAN, UPC, ISBN).
+      - name: unit_price
+        description: Variant selling price in the store's default currency.
+      - name: compare_at_price
+        description: Original price shown for sale items. NULL if not on sale.
+      - name: inventory_item_id
+        description: Shopify inventory item ID — joins to stg_shopify__inventory_items.
+      - name: inventory_policy
+        description: How to handle out-of-stock — deny or continue.
+      - name: requires_shipping
+        description: Whether this variant requires physical shipping.
+      - name: is_taxable
+        description: Whether this variant is taxable.
+      - name: weight
+        description: Variant weight for shipping calculation.
+      - name: weight_unit
+        description: Unit of weight — g, kg, lb, oz.
+      - name: product_title
+        description: Shopify product title from parent product.
+      - name: product_handle
+        description: URL slug for the product.
+      - name: product_type
+        description: Shopify product type — merchant-defined category.
+      - name: vendor
+        description: Product vendor / brand.
+      - name: is_active
+        description: TRUE when product_status = 'active'.
+      - name: product_status
+        description: Shopify product status — active, archived, or draft.
+      - name: image_url
+        description: URL of the product's primary image.
+      - name: product_tags_raw
+        description: Comma-separated product tags from Shopify.
+      - name: unit_cost
+        description: Cost of goods per unit from the inventory item. NULL if not set.
+      - name: country_of_origin
+        description: Country of origin from the inventory item. NULL if not set.
+      - name: inventory_tracked
+        description: Whether Shopify tracks inventory for this item.
+      - name: created_at
+        description: Timestamp when the variant was created in Shopify.
+        tests:
+          - not_null
+      - name: updated_at
+        description: >
+          Derived updated_at — greatest of variant updated_at and product updated_at.
+          Used as the timestamp strategy column for SCD2 change detection.
+        tests:
+          - not_null
+      - name: dbt_scd_id
+        description: dbt-generated surrogate key for this specific SCD2 row.
+        tests:
+          - not_null
+          - unique
+      - name: dbt_updated_at
+        description: Timestamp when dbt last evaluated this record.
+        tests:
+          - not_null
+      - name: dbt_valid_from
+        description: Timestamp when this version of the record became active.
+        tests:
+          - not_null
+      - name: dbt_valid_to
+        description: Timestamp when this version was superseded. NULL for the current active record.
+
+  - name: snap_marketing_campaign
+    description: >
+      SCD2 history of Meta Ads campaigns per §4.36. One row per campaign_id per change
+      period. Uses timestamp strategy on updated_at from stg_meta_ads__campaigns.
+      Feeds dim_marketing_campaign via current-record filter on dbt_valid_to IS NULL.
+    config:
+      target_schema: snapshots
+      strategy: timestamp
+      unique_key: campaign_id
+      updated_at: updated_at
+      invalidate_hard_deletes: false
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: campaign_id
+        description: >
+          Cross-platform campaign key — prefixed 'meta_' + Meta campaign ID.
+          unique_key for this snapshot.
+        tests:
+          - not_null
+      - name: meta_campaign_id
+        description: Raw Meta Ads campaign ID (without prefix).
+        tests:
+          - not_null
+      - name: account_id
+        description: Meta Ads account ID that owns this campaign.
+        tests:
+          - not_null
+      - name: campaign_name
+        description: Campaign name as set in Meta Ads Manager.
+        tests:
+          - not_null
+      - name: campaign_objective
+        description: Meta Ads campaign objective — e.g. OUTCOME_SALES, OUTCOME_TRAFFIC.
+      - name: campaign_status
+        description: Campaign status — ACTIVE, PAUSED, DELETED, ARCHIVED.
+        tests:
+          - not_null
+      - name: buying_type
+        description: Ad buying type — AUCTION or RESERVED.
+      - name: daily_budget
+        description: Daily budget in the account's currency (divided by 100 from Meta's cents).
+      - name: lifetime_budget
+        description: Lifetime budget in the account's currency (divided by 100 from Meta's cents).
+      - name: start_at
+        description: Campaign start timestamp with timezone.
+      - name: end_at
+        description: Campaign end timestamp with timezone. NULL for campaigns with no end date.
+      - name: start_date
+        description: Campaign start date.
+      - name: end_date
+        description: Campaign end date. NULL for campaigns with no end date.
+      - name: is_active
+        description: TRUE when campaign_status = 'ACTIVE'.
+        tests:
+          - not_null
+      - name: created_at
+        description: Timestamp when the campaign was created in Meta Ads.
+        tests:
+          - not_null
+      - name: updated_at
+        description: >
+          Timestamp when the campaign was last updated in Meta Ads.
+          Used as the timestamp strategy column for SCD2 change detection.
+        tests:
+          - not_null
+      - name: dbt_scd_id
+        description: dbt-generated surrogate key for this specific SCD2 row.
+        tests:
+          - not_null
+          - unique
+      - name: dbt_updated_at
+        description: Timestamp when dbt last evaluated this record.
+        tests:
+          - not_null
+      - name: dbt_valid_from
+        description: Timestamp when this version of the record became active.
+        tests:
+          - not_null
+      - name: dbt_valid_to
+        description: Timestamp when this version was superseded. NULL for the current active record.
