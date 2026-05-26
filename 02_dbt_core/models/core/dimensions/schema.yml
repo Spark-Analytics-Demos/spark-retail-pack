@@ -1,0 +1,699 @@
+version: 2
+
+models:
+  # ---------------------------------------------------------------------------
+  # dim_date
+  # ---------------------------------------------------------------------------
+  - name: dim_date
+    description: >
+      Calendar dimension per §4.5. One row per day from 2015-01-01 through 2031-12-31.
+      Includes fiscal calendar (var fiscal_year_start_month), holiday flags (var
+      holiday_country_code), and relative flags recomputed on every build.
+      Materialized as a table; full refresh daily.
+    config:
+      materialized: table
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: date_sk
+        description: YYYYMMDD integer surrogate key — primary key.
+        tests: [not_null, unique]
+      - name: date_actual
+        description: The actual calendar date.
+        tests: [not_null, unique]
+      - name: day_of_week
+        description: ISO day of week — 1 (Monday) through 7 (Sunday).
+        tests: [not_null]
+      - name: day_name
+        description: Full day name — "Monday", "Tuesday", etc.
+        tests: [not_null]
+      - name: day_short_name
+        description: 3-letter abbreviation — "Mon", "Tue", etc.
+        tests: [not_null]
+      - name: day_of_month
+        description: Day number within the month (1–31).
+        tests: [not_null]
+      - name: day_of_year
+        description: Day number within the year (1–366).
+        tests: [not_null]
+      - name: is_weekend
+        description: TRUE for Saturday and Sunday.
+        tests: [not_null]
+      - name: is_weekday
+        description: TRUE for Monday through Friday.
+        tests: [not_null]
+      - name: is_holiday
+        description: TRUE if this date is a public or bank holiday in the configured country.
+        tests: [not_null]
+      - name: holiday_name
+        description: Name of the holiday (e.g., "Christmas Day"). NULL if not a holiday.
+      - name: is_business_day
+        description: TRUE if the day is a weekday and not a holiday.
+        tests: [not_null]
+      - name: week_of_year
+        description: ISO week number (1–53).
+        tests: [not_null]
+      - name: week_starting_date
+        description: Monday of the ISO week.
+        tests: [not_null]
+      - name: week_ending_date
+        description: Sunday of the ISO week.
+        tests: [not_null]
+      - name: month_number
+        description: Month number (1–12).
+        tests: [not_null]
+      - name: month_name
+        description: Full month name — "January", "February", etc.
+        tests: [not_null]
+      - name: month_short_name
+        description: 3-letter abbreviation — "Jan", "Feb", etc.
+        tests: [not_null]
+      - name: month_starting_date
+        description: First day of the month.
+        tests: [not_null]
+      - name: month_ending_date
+        description: Last day of the month.
+        tests: [not_null]
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+        tests: [not_null]
+      - name: quarter_name
+        description: Quarter label — "Q1", "Q2", "Q3", "Q4".
+        tests: [not_null]
+      - name: year
+        description: Calendar year (e.g., 2026).
+        tests: [not_null]
+      - name: fiscal_year
+        description: >
+          Fiscal year. Equals calendar year when fiscal_year_start_month = 1.
+          For non-January fiscal starts, the fiscal year spans two calendar years.
+        tests: [not_null]
+      - name: fiscal_month
+        description: Month number within the fiscal year (1 = first month of fiscal year).
+        tests: [not_null]
+      - name: fiscal_quarter
+        description: Quarter number within the fiscal year (1–4).
+        tests: [not_null]
+      - name: prior_year_date_sk
+        description: date_sk for the same calendar day one year prior.
+        tests: [not_null]
+      - name: prior_year_date_actual
+        description: Same calendar day, previous year.
+        tests: [not_null]
+      - name: days_from_today
+        description: >
+          Signed days from today — negative for past dates, 0 for today,
+          positive for future dates. Recomputed on every build.
+        tests: [not_null]
+      - name: is_today
+        description: TRUE if this row is today's date.
+        tests: [not_null]
+      - name: is_yesterday
+        description: TRUE if this row is yesterday's date.
+        tests: [not_null]
+      - name: is_current_week
+        description: TRUE for dates within the current ISO week.
+        tests: [not_null]
+      - name: is_current_month
+        description: TRUE for dates within the current calendar month.
+        tests: [not_null]
+      - name: is_current_quarter
+        description: TRUE for dates within the current calendar quarter.
+        tests: [not_null]
+      - name: is_current_year
+        description: TRUE for dates within the current calendar year.
+        tests: [not_null]
+      - name: is_current_fiscal_year
+        description: TRUE for dates within the current fiscal year.
+        tests: [not_null]
+      - name: is_wtd
+        description: Week-to-date — within current week and on or before today.
+        tests: [not_null]
+      - name: is_mtd
+        description: Month-to-date — within current month and on or before today.
+        tests: [not_null]
+      - name: is_qtd
+        description: Quarter-to-date — within current quarter and on or before today.
+        tests: [not_null]
+      - name: is_ytd
+        description: Year-to-date — within current calendar year and on or before today.
+        tests: [not_null]
+      - name: is_fytd
+        description: Fiscal year-to-date — within current fiscal year and on or before today.
+        tests: [not_null]
+      - name: is_last_7_days
+        description: TRUE for today and the 6 prior days (trailing 7 days).
+        tests: [not_null]
+      - name: is_last_30_days
+        description: TRUE for today and the 29 prior days (trailing 30 days).
+        tests: [not_null]
+      - name: is_last_90_days
+        description: TRUE for today and the 89 prior days (trailing 90 days).
+        tests: [not_null]
+      - name: is_last_365_days
+        description: TRUE for today and the 364 prior days (trailing 365 days).
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # dim_geography
+  # ---------------------------------------------------------------------------
+  - name: dim_geography
+    description: >
+      Geographic reference dimension per §4.7. One row per geography_id — either
+      a country-level row or a country+region row. Sourced from seeds/dim_geography.csv.
+      Static; rebuilt only when the seed changes.
+    config:
+      materialized: table
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: geography_sk
+        description: Surrogate key — MD5 of geography_id.
+        tests: [not_null, unique]
+      - name: geography_id
+        description: >
+          Stable natural key. Country code for country-level rows (e.g., 'KE');
+          country_code-region_code for sub-region rows (e.g., 'US-CA', 'GB-SCT').
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country code.
+      - name: country_name
+        description: Full English country name.
+      - name: country_region
+        description: Continental grouping — Americas, EMEA, or APAC.
+      - name: country_subregion
+        description: More specific geographic grouping (e.g., Sub-Saharan Africa, Western Europe).
+      - name: state_or_region_code
+        description: ISO 3166-2 region code (e.g., 'CA' for California). NULL for country-level rows.
+      - name: state_or_region_name
+        description: Full name of the state or region. NULL for country-level rows.
+      - name: default_currency
+        description: ISO 4217 primary currency for this geography.
+      - name: default_timezone
+        description: IANA timezone identifier (e.g., 'Africa/Nairobi').
+      - name: is_tax_jurisdiction
+        description: Whether this geography has its own distinct tax rules.
+
+  # ---------------------------------------------------------------------------
+  # dim_channel
+  # ---------------------------------------------------------------------------
+  - name: dim_channel
+    description: >
+      Channel dimension per §4.6. One row per canonical channel. Sourced from
+      seeds/channel_mapping.csv (which maps raw source values to canonical channels).
+      Type 1 — history not tracked. Used as FK in fact_orders and fact_web_sessions.
+    config:
+      materialized: table
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: channel_sk
+        description: Surrogate key — MD5 of channel_id.
+        tests: [not_null, unique]
+      - name: channel_id
+        description: Stable channel identifier (e.g., organic_search_google, paid_social_meta).
+        tests: [not_null, unique]
+      - name: channel_name
+        description: Display name (e.g., "Google Organic", "Meta Ads").
+        tests: [not_null]
+      - name: channel_category
+        description: >
+          Broad channel grouping: search, social, email, direct, referral,
+          other, online_store, retail, marketplace.
+        tests: [not_null]
+      - name: channel_subcategory
+        description: More specific grouping (e.g., organic_search, paid_social).
+        tests: [not_null]
+      - name: channel_type
+        description: sales (transactions), acquisition (drives traffic), or both.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [sales, acquisition, both]
+      - name: platform
+        description: Platform name where applicable — google, facebook, shopify, etc. Nullable.
+      - name: parent_channel
+        description: Hierarchical parent group (e.g., 'meta' groups Facebook and Instagram). Nullable.
+      - name: is_paid
+        description: TRUE for channels associated with paid media spend.
+        tests: [not_null]
+      - name: is_owned
+        description: TRUE for owned-media channels — email lists and the brand's own online store.
+        tests: [not_null]
+      - name: is_active
+        description: Whether this channel is currently in use.
+        tests: [not_null]
+      - name: created_at
+        description: Timestamp when this channel record was first materialized.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # dim_payment_method
+  # ---------------------------------------------------------------------------
+  - name: dim_payment_method
+    description: >
+      Payment method type dimension per §4.8. One row per payment type observed in Stripe
+      (e.g., card_visa_credit, wallet_applepay, bnpl_klarna). Deduplicates from
+      stg_stripe__payment_methods instances to type-level grain. Type 1 — history not tracked.
+    config:
+      materialized: table
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: payment_method_sk
+        description: Surrogate key — MD5 of payment_method_id.
+        tests: [not_null, unique]
+      - name: payment_method_id
+        description: >
+          Canonical type identifier — e.g., card_visa_credit, wallet_applepay,
+          bnpl_klarna. Stable and client-portable (not a Stripe instance ID).
+        tests: [not_null, unique]
+      - name: payment_method_name
+        description: Human-readable display name — e.g., "Visa Credit Card", "Apple Pay".
+        tests: [not_null]
+      - name: payment_method_type
+        description: Canonical type vocabulary — card, digital_wallet, bnpl, bank_transfer, gift_card, cash, other.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [card, digital_wallet, bnpl, bank_transfer, gift_card, cash, crypto, other]
+      - name: payment_provider
+        description: Provider name — visa, mastercard, applepay, klarna, etc.
+        tests: [not_null]
+      - name: card_brand
+        description: Card network brand — visa, mastercard, amex, discover. NULL for non-card types.
+      - name: card_funding
+        description: Card funding type — credit, debit, prepaid. NULL for non-card types.
+      - name: is_credit_card
+        description: TRUE when payment_method_type = 'card'.
+        tests: [not_null]
+      - name: is_digital_wallet
+        description: TRUE when payment_method_type = 'digital_wallet'.
+        tests: [not_null]
+      - name: is_bnpl
+        description: TRUE when payment_method_type = 'bnpl'.
+        tests: [not_null]
+      - name: is_recurring_capable
+        description: TRUE for payment types that support subscription / recurring billing.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # dim_warehouse_location
+  # ---------------------------------------------------------------------------
+  - name: dim_warehouse_location
+    description: >
+      Warehouse and fulfillment location dimension per §4.9. One row per Shopify location.
+      Sourced from stg_shopify__locations. Type 1 — history not tracked.
+      Used as FK in fact_inventory_snapshot and fact_inventory_movements.
+    config:
+      materialized: table
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: location_sk
+        description: Surrogate key — MD5 of location_id.
+        tests: [not_null, unique]
+      - name: location_id
+        description: Shopify location ID — natural key.
+        tests: [not_null, unique]
+      - name: location_name
+        description: Location display name (e.g., "Main Warehouse - California").
+        tests: [not_null]
+      - name: location_type
+        description: One of — warehouse, store, supplier, 3pl, virtual.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [warehouse, store, supplier, 3pl, virtual]
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country code.
+      - name: state_or_region
+        description: State or province code from Shopify province_code.
+      - name: city
+        description: City of the location.
+      - name: timezone
+        description: IANA timezone for the location — defaults to reporting_timezone var when Shopify does not provide it.
+        tests: [not_null]
+      - name: is_fulfillment_location
+        description: TRUE if orders can ship from this location.
+        tests: [not_null]
+      - name: is_active
+        description: TRUE if the location is currently operational.
+        tests: [not_null]
+      - name: created_at
+        description: When the location was first added in Shopify.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # dim_email_campaign
+  # ---------------------------------------------------------------------------
+  - name: dim_email_campaign
+    description: >
+      Email campaign and flow dimension per §4.11. UNION of one-time campaigns and
+      automated flows from Klaviyo. email_campaign_id prefixed 'cmp_' for campaigns,
+      'flw_' for flows to avoid ID collision. Type 1 — history not tracked.
+    config:
+      materialized: table
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: email_campaign_sk
+        description: Surrogate key — MD5 of email_campaign_id.
+        tests: [not_null, unique]
+      - name: email_campaign_id
+        description: Prefixed Klaviyo ID — cmp_<klaviyo_campaign_id> or flw_<klaviyo_flow_id>.
+        tests: [not_null, unique]
+      - name: campaign_name
+        description: Campaign or flow name from Klaviyo.
+        tests: [not_null]
+      - name: campaign_type
+        description: Type of email program — campaign, flow, or transactional.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [campaign, flow, transactional]
+      - name: flow_step
+        description: Step identifier within a flow (NULL in v1 — flow step data not in connector scope).
+      - name: subject_line
+        description: Email subject line. Populated for campaigns; NULL for flows.
+      - name: send_date
+        description: Send date for campaigns. NULL for flows (triggered, not scheduled).
+      - name: target_segment
+        description: Target audience segment (NULL in v1 — not in Klaviyo connector scope).
+      - name: audience_size
+        description: Number of recipients at send time. Populated for campaigns; NULL for flows.
+      - name: is_active
+        description: >
+          For campaigns — TRUE if not yet sent (scheduled/draft).
+          For flows — TRUE if the flow is currently live.
+        tests: [not_null]
+      - name: created_at
+        description: When the campaign or flow was created in Klaviyo.
+        tests: [not_null]
+      - name: updated_at
+        description: When the campaign or flow was last updated.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # dim_product
+  # ---------------------------------------------------------------------------
+  - name: dim_product
+    description: >
+      Product variant dimension per §4.4. SCD2 — one row per variant per change period.
+      Sources from snap_product (strategy=timestamp on derived updated_at). Excludes
+      variants without a SKU (SKU is the natural key). Category and subcategory derived
+      from the product_category_mapping seed. brand defaults to vendor.
+    config:
+      materialized: table
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: product_sk
+        description: Surrogate key — MD5(variant_id + valid_from). Unique per version.
+        tests: [not_null, unique]
+      - name: sku
+        description: Stock-keeping unit — natural key. Never NULL (variants without SKU excluded).
+        tests: [not_null]
+      - name: product_id
+        description: Shopify product ID — parent of this variant.
+        tests: [not_null]
+      - name: variant_id
+        description: Shopify variant ID. Not unique here — same variant has multiple SCD2 versions.
+        tests: [not_null]
+      - name: product_title
+        description: Parent product title.
+        tests: [not_null]
+      - name: variant_title
+        description: Variant title (e.g., "Large / Red"). NULL for single-variant products with default title.
+      - name: display_name
+        description: >
+          Concatenated display name — "Product Title - Variant Title" when a non-default
+          variant title exists; otherwise just "Product Title".
+        tests: [not_null]
+      - name: barcode
+        description: UPC, EAN, or other barcode. NULL if not configured.
+      - name: product_handle
+        description: URL-friendly product slug — used for GA4 page path joins.
+      - name: image_url
+        description: Primary product image URL.
+      - name: product_type
+        description: Shopify product type (freeform merchant string).
+      - name: category
+        description: Canonical top-level category from product_category_mapping. Defaults to 'Uncategorized'.
+        tests: [not_null]
+      - name: subcategory
+        description: Canonical second-level category. Defaults to 'Uncategorized'.
+        tests: [not_null]
+      - name: vendor
+        description: Product vendor / brand from Shopify.
+      - name: brand
+        description: Brand name — defaults to vendor; configurable per client.
+      - name: tags
+        description: Shopify product tags as an array (split from product_tags_raw).
+      - name: unit_price
+        description: Current selling price in the store's currency.
+        tests: [not_null]
+      - name: compare_at_price
+        description: Compare-at ("original") price for sale display. NULL if not on sale.
+      - name: unit_cost
+        description: Cost of goods per unit from Shopify COGS. NULL when cost is not tracked.
+      - name: currency_code
+        description: ISO 4217 reporting currency code from var reporting_currency.
+        tests: [not_null]
+      - name: weight
+        description: Physical weight of the variant.
+      - name: weight_unit
+        description: Unit of weight — g, kg, lb, or oz.
+      - name: is_taxable
+        description: Whether this variant is subject to tax.
+        tests: [not_null]
+      - name: requires_shipping
+        description: TRUE for physical goods; FALSE for digital products.
+        tests: [not_null]
+      - name: is_active
+        description: TRUE when the parent product status is 'active'.
+        tests: [not_null]
+      - name: inventory_tracked
+        description: Whether Shopify tracks inventory for this SKU.
+        tests: [not_null]
+      - name: inventory_policy
+        description: Out-of-stock behaviour — deny (block sale) or continue (allow oversell).
+      - name: created_at
+        description: When the variant was first created in Shopify.
+        tests: [not_null]
+      - name: updated_at
+        description: When this version of the variant was created (derived greatest of variant + product updated_at).
+        tests: [not_null]
+      - name: valid_from
+        description: SCD2 — when this version became effective.
+        tests: [not_null]
+      - name: valid_to
+        description: SCD2 — when this version was superseded. NULL for the current version.
+      - name: is_current
+        description: SCD2 — TRUE for the current active version of each variant.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # dim_marketing_campaign
+  # ---------------------------------------------------------------------------
+  - name: dim_marketing_campaign
+    description: >
+      Paid marketing campaign dimension per §4.10. SCD2 — one row per campaign per change
+      period. Source is Meta Ads (snap_marketing_campaign, strategy=timestamp). channel_sk
+      is resolved via FK to dim_channel for 'paid_social_meta'. Stubbed NULL columns:
+      bid_strategy, target_audience (ad-set level, not campaign level), utm_source,
+      utm_medium, utm_campaign (client-managed URL parameters).
+    config:
+      materialized: table
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    columns:
+      - name: campaign_sk
+        description: Surrogate key — MD5(campaign_id + valid_from). Unique per version.
+        tests: [not_null, unique]
+      - name: campaign_id
+        description: Cross-platform campaign key — prefixed 'meta_' + Meta campaign ID.
+        tests: [not_null]
+      - name: platform
+        description: Ad platform — 'meta' in v1.
+        tests: [not_null]
+      - name: campaign_name
+        description: Campaign name as configured in Meta Ads Manager.
+        tests: [not_null]
+      - name: campaign_objective
+        description: >
+          Canonical objective — conversions, traffic, awareness, engagement, leads,
+          app_installs. Mapped from Meta OUTCOME_* codes.
+      - name: campaign_status
+        description: Canonical lowercase status — active, paused, deleted, archived.
+        tests: [not_null]
+      - name: buying_type
+        description: Ad buying type — auction or reserved.
+      - name: start_date
+        description: Campaign start date.
+      - name: end_date
+        description: Campaign end date. NULL for campaigns with no scheduled end.
+      - name: daily_budget
+        description: Daily budget cap in the account's currency. NULL when lifetime budget is set.
+      - name: lifetime_budget
+        description: Total budget cap in the account's currency. NULL when daily budget is set.
+      - name: bid_strategy
+        description: >
+          Bid strategy (NULL in v1 — lowest_cost, target_cost, bid_cap at ad-set level,
+          not exposed in Meta campaign API).
+      - name: target_audience
+        description: Audience name — NULL in v1 (set at ad-set level in Meta).
+      - name: channel_sk
+        description: FK to dim_channel — resolves to paid_social_meta for all Meta campaigns.
+        tests:
+          - relationships:
+              to: ref('dim_channel')
+              field: channel_sk
+      - name: utm_source
+        description: UTM source parameter — NULL in v1 (client-managed URL parameters).
+      - name: utm_medium
+        description: UTM medium parameter — NULL in v1.
+      - name: utm_campaign
+        description: UTM campaign parameter — NULL in v1. Join key to fact_web_sessions when populated.
+      - name: created_at
+        description: When the campaign was created in Meta Ads.
+        tests: [not_null]
+      - name: valid_from
+        description: SCD2 — when this version became effective.
+        tests: [not_null]
+      - name: valid_to
+        description: SCD2 — when this version was superseded. NULL for the current version.
+      - name: is_current
+        description: SCD2 — TRUE for the current active version of each campaign.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # dim_customer
+  # ---------------------------------------------------------------------------
+  - name: dim_customer
+    description: >
+      Customer identity dimension per §4.3. SCD2 — one row per resolved customer per
+      change period. Identity-resolved across Shopify, Stripe, and Klaviyo via
+      int_customer_identity_resolution (three-tier: email hash, phone hash, fuzzy name).
+      PII columns (email, phone, first_name, last_name) are NULL when pii_masking_enabled=true.
+      Stubbed NULL columns: first_order_date, last_seen_at (require fact tables),
+      customer_segment (Pro feature), acquisition_channel (Phase 2),
+      city, preferred_currency (not in source systems).
+    config:
+      materialized: table
+      schema: gold
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: true
+    columns:
+      - name: customer_sk
+        description: Surrogate key — MD5(customer_id + valid_from). Unique per version.
+        tests: [not_null, unique]
+      - name: customer_id
+        description: Canonical business key — SHA-256 of primary email (Tier 1), ph_ + phone_hash (Tier 2), or source_system+source_id (unmatched).
+        tests: [not_null]
+      - name: email_hash
+        description: SHA-256 hash of lower-cased email. Equals customer_id for Tier-1 matches.
+        tests: [not_null]
+      - name: email
+        description: Plaintext email — NULL when pii_masking_enabled = true.
+      - name: phone_hash
+        description: SHA-256 hash of normalized phone number. NULL when no phone in any source.
+      - name: phone
+        description: Plaintext phone number — NULL when pii_masking_enabled = true.
+      - name: first_name
+        description: First name — NULL when pii_masking_enabled = true.
+      - name: last_name
+        description: Last name — NULL when pii_masking_enabled = true.
+      - name: customer_status
+        description: Status from Shopify — active, blocked, or NULL for non-Shopify-only customers.
+      - name: customer_segment
+        description: RFM-derived segment — NULL in OSS; advanced segmentation is a Pro feature.
+      - name: acquisition_channel
+        description: Channel where this customer first appeared — NULL until Phase 2 channel attribution.
+      - name: acquisition_source_system
+        description: Source system that first observed this customer — shopify, stripe, or klaviyo.
+        tests: [not_null]
+      - name: acquisition_date
+        description: Date of first interaction across all sources.
+      - name: first_order_date
+        description: Date of first completed order — NULL until fact_orders is built.
+      - name: last_seen_at
+        description: Most recent activity timestamp across sources — NULL until fact tables are built.
+      - name: is_b2b_customer
+        description: TRUE for business customers identified via Shopify tags or company field.
+        tests: [not_null]
+      - name: customer_tags
+        description: Shopify customer tags as an array.
+      - name: preferred_currency
+        description: Customer's preferred ISO 4217 currency — NULL (not captured in v1 sources).
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country from Shopify default_address.
+      - name: region
+        description: Province or state code from Shopify default_address.
+      - name: city
+        description: City — NULL (not captured in identity resolution sources).
+      - name: postal_code_hash
+        description: SHA-256 hash of postal code. Plaintext when pii_masking_enabled = false.
+      - name: marketing_consent
+        description: TRUE if subscribed to any marketing channel. Klaviyo wins over Shopify.
+        tests: [not_null]
+      - name: email_subscribed
+        description: Email marketing subscription status.
+        tests: [not_null]
+      - name: sms_subscribed
+        description: SMS marketing subscription status.
+        tests: [not_null]
+      - name: source_systems
+        description: Array of source systems where this customer was observed.
+        tests: [not_null]
+      - name: identity_resolution_method
+        description: How the customer was matched — email, phone, fuzzy_name_address, or unmatched.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [email, phone, fuzzy_name_address, unmatched]
+      - name: match_confidence
+        description: Confidence of the identity match — high for Tier 1/2, medium for Tier 3.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [high, medium]
+      - name: created_at
+        description: Earliest created_at across all source records for this customer.
+        tests: [not_null]
+      - name: updated_at
+        description: Latest updated_at across all source records for this customer.
+        tests: [not_null]
+      - name: valid_from
+        description: SCD2 — when this version became effective.
+        tests: [not_null]
+      - name: valid_to
+        description: SCD2 — when this version was superseded. NULL for the current version.
+      - name: is_current
+        description: SCD2 — TRUE for the current active version of each customer.
+        tests: [not_null]
