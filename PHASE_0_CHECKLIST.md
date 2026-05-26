@@ -226,7 +226,7 @@ The `calogica/dbt_date` package was deprecated; replaced with `godatadriven/dbt_
 dbt 1.8 renamed the `tests:` key in `dbt_project.yml` to `data_tests:`. Updated OSS project accordingly. Pro project has no test config so no change needed there.
 
 **2026-05-26 — PII hash salt generated and stored in `.env`**
-Salt: `c19288b15753a0db947d1074c98030e0dc0089cbcd33107c6bc0c1c8ad95284c`. This value must be consistent across all environments that need comparable hashes. Store in secrets manager before sharing with team or running in CI.
+Salt generated and stored in `.env` (gitignored) and GitHub Actions secret `PII_HASH_SALT`. Do not record the actual value here. Must be consistent across all environments that need comparable hashes — rotate if ever exposed.
 
 ### Issues encountered
 
@@ -245,7 +245,7 @@ No dedicated `SVC_CI` account exists yet. `SVC_DBT` has `RETAIL_TRANSFORMER` and
 
 | Secret name | Value |
 |---|---|
-| `SNOWFLAKE_ACCOUNT` | `RYXGDWD-FPB13834` |
+| `SNOWFLAKE_ACCOUNT` | *(account identifier — in your `.env`)* |
 | `SNOWFLAKE_CI_USER` | `SVC_DBT` |
 | `SNOWFLAKE_CI_PASSWORD` | *(SVC_DBT password — in your `.env`)* |
 | `SNOWFLAKE_USER` | `SVC_DBT` |
