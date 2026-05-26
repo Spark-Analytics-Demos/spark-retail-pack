@@ -75,32 +75,32 @@ Document the decisions in a new file `PHASE_0_DECISIONS.md` at the repo root. Th
 ## 0.3 dbt project scaffolding (Section 4 Part 3, ~1.0 eng-week)
 
 ### OSS project (`02_dbt_core/`)
-- [ ] `dbt_project.yml` created with project name `spark_retail_pack`
-- [ ] `packages.yml` created with `dbt-labs/dbt_utils` and `dbt-labs/metrics` pinned per Section 7.3
-- [ ] `profiles.yml.template` created (committed; the real `profiles.yml` is gitignored)
-- [ ] Folder structure created per CLAUDE.md layout:
-  - [ ] `models/staging/{shopify,stripe,ga4,meta_ads,klaviyo}/`
-  - [ ] `models/intermediate/`
-  - [ ] `models/core/{dimensions,facts}/`
-  - [ ] `models/marts/{sales,customer,inventory}/`
-  - [ ] `seeds/source_mappings/`
-  - [ ] `macros/`
-  - [ ] `tests/`
-  - [ ] `snapshots/`
-  - [ ] `analyses/`
-- [ ] `.gitkeep` files in empty directories to preserve them in git
-- [ ] First dbt run succeeds: `dbt deps && dbt parse`
+- [x] `dbt_project.yml` created with project name `spark_retail_pack`
+- [x] `packages.yml` created — `dbt-labs/dbt_utils`, `dbt-labs/codegen`, `godatadriven/dbt_date`, `dbt-labs/dbt_external_tables` (see notes: `dbt-labs/metrics` removed)
+- [x] `profiles.yml.template` created (committed; the real `profiles.yml` is gitignored)
+- [x] Folder structure created per CLAUDE.md layout:
+  - [x] `models/staging/{shopify,stripe,ga4,meta_ads,klaviyo}/`
+  - [x] `models/intermediate/`
+  - [x] `models/core/{dimensions,facts}/`
+  - [x] `models/marts/{sales,customer,inventory}/`
+  - [x] `seeds/source_mappings/`
+  - [x] `macros/`
+  - [x] `tests/`
+  - [x] `snapshots/`
+  - [x] `analyses/`
+- [x] `.gitkeep` files in empty directories to preserve them in git
+- [x] First dbt run succeeds: `dbt deps && dbt parse` — clean (warnings only; expected on empty scaffold)
 
 ### Pro project (`03_dbt_pro/`)
-- [ ] `dbt_project.yml` created with project name `spark_retail_pack_pro`
-- [ ] `packages.yml` declaring dependency on `spark_retail_pack` (the OSS package)
-- [ ] LICENSE file (commercial license terms, even if not yet finalized — placeholder OK)
-- [ ] Folder structure:
-  - [ ] `models/advanced_metrics/`
-  - [ ] `models/ai_ready/`
-  - [ ] `models/semantic/` (for MetricFlow YAML per Section 7.4)
-  - [ ] `macros/`
-- [ ] First dbt run succeeds: `dbt deps && dbt parse`
+- [x] `dbt_project.yml` created with project name `spark_retail_pack_pro`
+- [x] `packages.yml` declaring dependency on `spark_retail_pack` via local path (`../02_dbt_core`)
+- [x] LICENSE file (commercial license placeholder committed)
+- [x] Folder structure:
+  - [x] `models/advanced_metrics/`
+  - [x] `models/ai_ready/`
+  - [x] `models/semantic/` (for MetricFlow YAML per Section 7.4)
+  - [x] `macros/`
+- [x] First dbt run succeeds: `dbt deps && dbt parse` — clean (warnings only; expected on empty scaffold)
 
 ---
 
@@ -218,6 +218,15 @@ Use this space to track decisions, issues, and learnings during Phase 0. Capture
 
 **2026-05-26 — Role hierarchy: no `SYSADMIN → RETAIL_ADMIN` grant**
 The original `03_roles.sql` attempted both `GRANT ROLE RETAIL_ADMIN TO SYSADMIN` and `GRANT ROLE SYSADMIN TO RETAIL_ADMIN`. Snowflake rejects this as a cycle. Decision: all 7 custom roles are granted up to `SYSADMIN` (so any SYSADMIN user can assume them), and `SYSADMIN` is NOT granted down to `RETAIL_ADMIN`. Engineers who need warehouse-admin capability are granted `SYSADMIN` directly on their user account in Snowsight — not via the role hierarchy.
+
+**2026-05-26 — `dbt-labs/metrics` removed from packages.yml**
+MetricFlow is built into dbt Core 1.6+ and the `dbt-labs/metrics` package was deprecated. Removed from `02_dbt_core/packages.yml`. Semantic layer models live in `03_dbt_pro/models/semantic/` as intended.
+
+**2026-05-26 — `calogica/dbt_date` renamed to `godatadriven/dbt_date`**
+The `calogica/dbt_date` package was deprecated; replaced with `godatadriven/dbt_date` at the same version (0.10.1). No API changes.
+
+**2026-05-26 — `tests:` renamed to `data_tests:` in dbt_project.yml**
+dbt 1.8 renamed the `tests:` key in `dbt_project.yml` to `data_tests:`. Updated OSS project accordingly. Pro project has no test config so no change needed there.
 
 **2026-05-26 — PII hash salt generated and stored in `.env`**
 Salt: `c19288b15753a0db947d1074c98030e0dc0089cbcd33107c6bc0c1c8ad95284c`. This value must be consistent across all environments that need comparable hashes. Store in secrets manager before sharing with team or running in CI.
