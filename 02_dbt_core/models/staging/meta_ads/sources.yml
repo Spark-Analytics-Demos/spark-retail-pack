@@ -41,6 +41,10 @@ sources:
 
       - name: campaigns
         description: "Campaign master — one row per campaign. Primary source for dim_marketing_campaign."
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 72, period: hour}
+        loaded_at_field: _fivetran_synced   # ETL tool metadata column; use updated_time from Meta API if available
         columns:
           - name: id
             description: "Meta campaign ID."
@@ -64,6 +68,10 @@ sources:
 
       - name: ad_sets
         description: "Ad set master — one row per ad set. Denormalized into dim_marketing_campaign."
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 72, period: hour}
+        loaded_at_field: _fivetran_synced
         columns:
           - name: id
             tests:
@@ -82,6 +90,10 @@ sources:
 
       - name: ads
         description: "Individual ad metadata. Denormalized into dim_marketing_campaign where stable."
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 72, period: hour}
+        loaded_at_field: _fivetran_synced
         columns:
           - name: id
             tests:
