@@ -16,14 +16,13 @@ packages:
     version: 0.13.1
 
   # dbt-date — date dimension helpers (used in dim_date generation)
-  - package: calogica/dbt_date
+  # Renamed from calogica/dbt_date to godatadriven/dbt_date
+  - package: godatadriven/dbt_date
     version: 0.10.1
 
   # dbt-external-tables — Snowflake external table helpers
   - package: dbt-labs/dbt_external_tables
     version: 0.10.1
 
-  # dbt-metrics / Semantic Layer — for MetricFlow YAML authoring
-  # Note: the Semantic Layer GraphQL API requires dbt Cloud (see ADR-004)
-  - package: dbt-labs/metrics
-    version: 1.7.5
+  # Note: dbt-labs/metrics is NOT included — MetricFlow is built into
+  # dbt Core 1.6+. Semantic layer models live in 03_dbt_pro/models/semantic/.

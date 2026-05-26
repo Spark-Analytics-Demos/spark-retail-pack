@@ -143,9 +143,9 @@ snapshots:
     +tags: ['snapshots']
 
 # -----------------------------------------------------------------------------
-# Test configurations
+# Test configurations (dbt 1.8+: key renamed from 'tests' to 'data_tests')
 # -----------------------------------------------------------------------------
-tests:
+data_tests:
   +severity: error
   +store_failures: true
   +store_failures_as: table
