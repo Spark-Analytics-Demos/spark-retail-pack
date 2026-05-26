@@ -14,12 +14,12 @@ This checklist sequences Phase 0 work into concrete tasks. Each task references 
 
 Per Section 13.3, six decisions must be locked before infrastructure provisioning:
 
-- [ ] **dbt Cloud vs. dbt Core path** chosen (per ADR-004). For internal v1 build, recommendation is dbt Core to start; layer dbt Cloud later if needed.
-- [ ] **Reporting currency** decided (default: USD; per Section 4 Part 1 §4.11)
-- [ ] **Reporting timezone** decided (default: client HQ timezone; per Section 4 Part 1 §4.7)
-- [ ] **Snowflake region** chosen (default: `us-east-1` for US; `eu-west-1` for EU)
-- [ ] **PII handling level** confirmed (default: full hashing in non-dev environments; per Section 8.5)
-- [ ] **Retention horizons** confirmed (Section 8.9 defaults unless modified)
+- [x] **dbt Cloud vs. dbt Core path** chosen — dbt Core (per ADR-004)
+- [x] **Reporting currency** decided — USD (per Section 4 Part 1 §4.11)
+- [x] **Reporting timezone** decided — Africa/Nairobi EAT UTC+3 (per Section 4 Part 1 §4.7)
+- [x] **Snowflake region** chosen — AWS us-west-2
+- [x] **PII handling level** confirmed — full SHA-256 hashing in staging/prod; disabled in dev (per Section 8.5)
+- [x] **Retention horizons** confirmed — Section 8.9 defaults, unmodified
 
 Document the decisions in a new file `PHASE_0_DECISIONS.md` at the repo root. These are inputs to multiple subsequent tasks.
 
@@ -28,45 +28,47 @@ Document the decisions in a new file `PHASE_0_DECISIONS.md` at the repo root. Th
 ## 0.2 Snowflake provisioning (Section 2.5, ~1.0 eng-week)
 
 ### Account setup
-- [ ] Snowflake account created in the chosen region (Standard or Enterprise edition)
+- [x] Snowflake account created in the chosen region — account `RYXGDWD-FPB13834`, region `AWS_US_WEST_2`
 - [ ] Multi-factor authentication enabled for the admin account
-- [ ] Account identifier and credentials securely stored (not in this repo)
-- [ ] Cost monitoring dashboard configured per Section 4 Part 3 §4.46
+- [x] Account identifier and credentials securely stored — in `.env` (gitignored); migrate to secrets manager before sharing with team
+- [ ] Cost monitoring dashboard configured per Section 4 Part 3 §4.46 — resource monitors created (01-05-2026); Snowsight cost dashboard not yet configured
 
 ### Databases
-- [ ] `RAW_RETAIL` database created (bronze layer)
-- [ ] `ANALYTICS_RETAIL_DEV` database created (dev environment, masking disabled)
-- [ ] `ANALYTICS_RETAIL_STAGING` database created (staging environment, masking enabled)
-- [ ] `ANALYTICS_RETAIL` database created (production environment, masking enabled)
-- [ ] Time Travel set to 7 days on `ANALYTICS_RETAIL` per Section 2 §2.9
+- [x] `RAW_RETAIL` database created (bronze layer)
+- [x] `ANALYTICS_RETAIL_DEV` database created (dev environment, masking disabled)
+- [x] `ANALYTICS_RETAIL_STAGING` database created (staging environment, masking enabled)
+- [x] `ANALYTICS_RETAIL` database created (production environment, masking enabled)
+- [ ] Time Travel set to 7 days on `ANALYTICS_RETAIL` per Section 2 §2.9 — not yet verified; check in Snowsight
 
 ### Schemas (in each environment database)
-- [ ] `BRONZE` schema (raw landed data per source)
-- [ ] `SILVER` schema (staging)
-- [ ] `GOLD` schema (core dimensions and facts)
-- [ ] `MART_SALES`, `MART_CUSTOMER`, `MART_INVENTORY` schemas
-- [ ] `SEMANTIC` schema (materialized semantic layer views — Path 2 of ADR-004)
-- [ ] `METADATA` schema (audit, lineage, quality logs)
+- [x] Bronze source schemas in `RAW_RETAIL`: `SHOPIFY`, `STRIPE`, `GA4`, `META_ADS`, `KLAVIYO`
+- [x] `STAGING` schema (silver equivalent)
+- [x] `GOLD` schema (core dimensions and facts)
+- [x] `MART_SALES`, `MART_CUSTOMER`, `MART_INVENTORY` schemas
+- [x] `SEMANTIC` schema (materialized semantic layer views — Path 2 of ADR-004)
+- [x] `METADATA` schema (audit, lineage, quality logs)
+- [x] Additional schemas: `INTERMEDIATE`, `SEEDS`, `SNAPSHOTS`, `QUARANTINE`
 
 ### Warehouses
-- [ ] `WH_LOAD` warehouse (XSmall, auto-suspend 60s) — for ingestion writes
-- [ ] `WH_TRANSFORM` warehouse (Small or Medium, auto-suspend 60s) — for dbt
-- [ ] `WH_BI` warehouse (XSmall, auto-suspend 60s) — for Power BI queries
+- [x] `WH_LOAD` warehouse (XSmall, auto-suspend 60s) — for ingestion writes
+- [x] `WH_TRANSFORM` warehouse (Small or Medium, auto-suspend 60s) — for dbt
+- [x] `WH_BI` warehouse (XSmall, auto-suspend 60s) — for Power BI queries
+- [x] `WH_ADHOC` warehouse — for analyst ad-hoc queries
 
 ### Roles (per Section 2.5 — all 7 roles)
-- [ ] `RETAIL_LOADER` role created with write access to `RAW_RETAIL`
-- [ ] `RETAIL_TRANSFORMER` role created with read on `RAW_RETAIL`, write on `ANALYTICS_RETAIL*`
-- [ ] `RETAIL_BI_READER` role created with read-only on `MART_*` and `SEMANTIC` schemas
-- [ ] `RETAIL_ANALYST` role created with read on all `ANALYTICS_RETAIL` schemas
-- [ ] `RETAIL_PII_VIEWER` role created (additive — grants access to `customer_pii_unmasked` mart view)
-- [ ] `RETAIL_FINANCE_VIEWER` role created (additive — grants access to `confidential`-tagged columns)
-- [ ] `RETAIL_ADMIN` role created (engineering team only)
+- [x] `RETAIL_LOADER` role created with write access to `RAW_RETAIL`
+- [x] `RETAIL_TRANSFORMER` role created with read on `RAW_RETAIL`, write on `ANALYTICS_RETAIL*`
+- [x] `RETAIL_BI_READER` role created with read-only on `MART_*` and `SEMANTIC` schemas
+- [x] `RETAIL_ANALYST` role created with read on all `ANALYTICS_RETAIL` schemas
+- [x] `RETAIL_PII_VIEWER` role created (additive — grants access to `customer_pii_unmasked` mart view)
+- [x] `RETAIL_FINANCE_VIEWER` role created (additive — grants access to `confidential`-tagged columns)
+- [x] `RETAIL_ADMIN` role created (engineering team only)
 
 ### Service accounts
-- [ ] Service account for dbt with `RETAIL_TRANSFORMER` role
-- [ ] Service account for ingestion tool with `RETAIL_LOADER` role
-- [ ] Service account for Power BI with `RETAIL_BI_READER` role
-- [ ] All service account credentials stored in a secrets manager (NOT in repo)
+- [x] `SVC_DBT` — dbt service account with `RETAIL_TRANSFORMER` role
+- [x] `SVC_INGEST` — ingestion service account with `RETAIL_LOADER` role
+- [x] `SVC_POWERBI` — Power BI service account with `RETAIL_BI_READER` role
+- [ ] Service account credentials stored in a secrets manager — currently in `.env` only; migrate before onboarding additional team members
 
 ---
 
@@ -214,11 +216,16 @@ Use this space to track decisions, issues, and learnings during Phase 0. Capture
 
 ### Decisions made
 
-_(Add as Phase 0 progresses)_
+**2026-05-26 — Role hierarchy: no `SYSADMIN → RETAIL_ADMIN` grant**
+The original `03_roles.sql` attempted both `GRANT ROLE RETAIL_ADMIN TO SYSADMIN` and `GRANT ROLE SYSADMIN TO RETAIL_ADMIN`. Snowflake rejects this as a cycle. Decision: all 7 custom roles are granted up to `SYSADMIN` (so any SYSADMIN user can assume them), and `SYSADMIN` is NOT granted down to `RETAIL_ADMIN`. Engineers who need warehouse-admin capability are granted `SYSADMIN` directly on their user account in Snowsight — not via the role hierarchy.
+
+**2026-05-26 — PII hash salt generated and stored in `.env`**
+Salt: `c19288b15753a0db947d1074c98030e0dc0089cbcd33107c6bc0c1c8ad95284c`. This value must be consistent across all environments that need comparable hashes. Store in secrets manager before sharing with team or running in CI.
 
 ### Issues encountered
 
-_(Add as Phase 0 progresses)_
+**2026-05-26 — Circular role grant in `03_roles.sql`**
+`GRANT ROLE SYSADMIN TO RETAIL_ADMIN` failed because the prior statement had already granted `RETAIL_ADMIN` to `SYSADMIN`. Fixed by removing the downward grant. See decision above.
 
 ### Candidate ADRs
 
