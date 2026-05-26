@@ -29,16 +29,16 @@ Document the decisions in a new file `PHASE_0_DECISIONS.md` at the repo root. Th
 
 ### Account setup
 - [x] Snowflake account created in the chosen region — account `RYXGDWD-FPB13834`, region `AWS_US_WEST_2`
-- [ ] Multi-factor authentication enabled for the admin account
+- [x] Multi-factor authentication enabled for the admin account — completed 2026-05-26
 - [x] Account identifier and credentials securely stored — in `.env` (gitignored); migrate to secrets manager before sharing with team
-- [ ] Cost monitoring dashboard configured per Section 4 Part 3 §4.46 — resource monitors created (2026-05-26); Snowsight cost dashboard not yet configured
+- [x] Cost monitoring dashboard configured per Section 4 Part 3 §4.46 — resource monitors created and Snowsight cost dashboard configured (2026-05-26)
 
 ### Databases
 - [x] `RAW_RETAIL` database created (bronze layer)
 - [x] `ANALYTICS_RETAIL_DEV` database created (dev environment, masking disabled)
 - [x] `ANALYTICS_RETAIL_STAGING` database created (staging environment, masking enabled)
 - [x] `ANALYTICS_RETAIL` database created (production environment, masking enabled)
-- [ ] Time Travel set to 7 days on `ANALYTICS_RETAIL` per Section 2 §2.9 — not yet verified; check in Snowsight
+- [x] Time Travel set to 7 days on `ANALYTICS_RETAIL` per Section 2 §2.9 — verified in Snowsight (2026-05-26)
 
 ### Schemas (in each environment database)
 - [x] Bronze source schemas in `RAW_RETAIL`: `SHOPIFY`, `STRIPE`, `GA4`, `META_ADS`, `KLAVIYO`
