@@ -1,0 +1,41 @@
+source_system,source_value,channel_id,channel_name,channel_category,channel_subcategory,is_paid,platform,parent_channel
+ga4,google / organic,organic_search_google,Google Organic,search,organic_search,false,google,search
+ga4,google / cpc,paid_search_google,Google Ads,search,paid_search,true,google,search
+ga4,google / ppc,paid_search_google,Google Ads,search,paid_search,true,google,search
+ga4,bing / organic,organic_search_bing,Bing Organic,search,organic_search,false,bing,search
+ga4,bing / cpc,paid_search_bing,Bing Ads,search,paid_search,true,bing,search
+ga4,facebook.com / referral,referral_facebook,Facebook Referral,social,organic_social,false,facebook,meta
+ga4,facebook.com / (none),referral_facebook,Facebook Referral,social,organic_social,false,facebook,meta
+ga4,instagram.com / referral,referral_instagram,Instagram Referral,social,organic_social,false,instagram,meta
+ga4,l.instagram.com / referral,referral_instagram,Instagram Referral,social,organic_social,false,instagram,meta
+ga4,facebook / cpc,paid_social_meta,Meta Ads,social,paid_social,true,facebook,meta
+ga4,instagram / cpc,paid_social_meta,Meta Ads,social,paid_social,true,instagram,meta
+ga4,tiktok.com / referral,referral_tiktok,TikTok Referral,social,organic_social,false,tiktok,tiktok
+ga4,tiktok / cpc,paid_social_tiktok,TikTok Ads,social,paid_social,true,tiktok,tiktok
+ga4,twitter.com / referral,referral_twitter,Twitter / X Referral,social,organic_social,false,twitter,twitter
+ga4,x.com / referral,referral_twitter,Twitter / X Referral,social,organic_social,false,twitter,twitter
+ga4,pinterest.com / referral,referral_pinterest,Pinterest Referral,social,organic_social,false,pinterest,pinterest
+ga4,pinterest / cpc,paid_social_pinterest,Pinterest Ads,social,paid_social,true,pinterest,pinterest
+ga4,youtube.com / referral,referral_youtube,YouTube,social,video,false,google,search
+ga4,(direct) / (none),direct,Direct,direct,direct,false,,
+ga4,(not set) / (not set),direct,Direct,direct,direct,false,,
+ga4,email / email,email_marketing,Email Marketing,email,email,false,,
+ga4,klaviyo / email,email_klaviyo,Klaviyo Email,email,email,false,klaviyo,email
+ga4,mailchimp / email,email_mailchimp,Mailchimp Email,email,email,false,mailchimp,email
+ga4,(none) / organic,organic_other,Organic Other,other,organic,false,,
+shopify,web,online_store,Online Store,online_store,online_store,false,shopify,online
+shopify,pos,retail_pos,Retail POS,retail,in_store,false,shopify,offline
+shopify,instagram,social_instagram,Instagram Shopping,social,social_commerce,false,instagram,meta
+shopify,facebook,social_facebook,Facebook Shop,social,social_commerce,false,facebook,meta
+shopify,shop_app,shopify_shop_app,Shop App,online_store,mobile_app,false,shopify,online
+shopify,shop-app,shopify_shop_app,Shop App,online_store,mobile_app,false,shopify,online
+shopify,draft_orders,shopify_draft_orders,Draft Orders,online_store,draft,false,shopify,online
+shopify,shopify_draft_orders,shopify_draft_orders,Draft Orders,online_store,draft,false,shopify,online
+shopify,amazon,marketplace_amazon,Amazon,marketplace,marketplace,false,amazon,marketplace
+shopify,google,paid_search_google,Google Shopping,search,shopping,true,google,search
+shopify,tiktok,social_tiktok,TikTok Shop,social,social_commerce,false,tiktok,tiktok
+shopify,recharge,subscription_recharge,ReCharge Subscriptions,online_store,subscription,false,recharge,subscriptions
+shopify,subscription,subscription_other,Subscriptions,online_store,subscription,false,,subscriptions
+meta_ads,*,paid_social_meta,Meta Ads,social,paid_social,true,facebook,meta
+klaviyo,*,email_klaviyo,Klaviyo Email,email,email,false,klaviyo,email
+stripe,direct,stripe_direct,Stripe Direct,online_store,payment_api,false,stripe,direct

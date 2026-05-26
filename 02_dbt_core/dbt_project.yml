@@ -132,6 +132,20 @@ seeds:
     +quote_columns: false
     source_mappings:
       +tags: ['seeds', 'source_mappings']
+    # Reference data seeds — rebuilt on schema change or data refresh
+    fx_rates:
+      +tags: ['seeds', 'reference_data', 'currency']
+    dim_geography:
+      +tags: ['seeds', 'reference_data', 'geography']
+    channel_mapping:
+      +tags: ['seeds', 'reference_data', 'channels']
+    product_category_mapping:
+      +tags: ['seeds', 'reference_data', 'products']
+    holidays:
+      +tags: ['seeds', 'reference_data', 'dates']
+    # Privacy seed — restrict schema access to RETAIL_ADMIN in production
+    erasure_requests:
+      +tags: ['seeds', 'privacy']
 
 # -----------------------------------------------------------------------------
 # Snapshot configurations

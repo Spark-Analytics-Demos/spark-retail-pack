@@ -1,0 +1,176 @@
+version: 2
+
+seeds:
+  - name: fx_rates
+    description: >
+      Quarterly FX exchange rates from source currencies to the reporting currency (USD).
+      Used by the daily_fx_rate macro for currency conversion in fact models.
+      Ships with representative quarterly rates for EUR, GBP, CAD, AUD, KES, NGN,
+      ZAR, INR, BRL, and MXN covering 2020–2026. For production multi-currency
+      deployments, replace with daily rates from a live FX connector.
+      The macro uses a nearest-prior-rate lookup (rate_date <= order_date),
+      so quarterly granularity works for any date within the coverage window.
+    columns:
+      - name: from_currency
+        description: ISO 4217 source currency code (uppercase).
+        tests: [not_null]
+      - name: to_currency
+        description: ISO 4217 reporting currency code (uppercase). Always USD in v1.
+        tests: [not_null]
+      - name: rate_date
+        description: Date this rate applies from (inclusive). Macro uses nearest-prior match.
+        tests: [not_null]
+      - name: rate
+        description: Exchange rate — 1 unit of from_currency in to_currency terms.
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "rate > 0"
+
+  - name: dim_geography
+    description: >
+      Reference geography dimension. One row per country (country-level grain)
+      or per country + state/region (sub-region grain). Used to populate
+      dim_geography in the core layer. Ships with ~58 country-level rows and
+      sub-region rows for the US (51), UK (4), Canada (10), and Australia (5).
+      Extend to the full ~250 countries + 3,500 sub-regions by loading from
+      an authoritative ISO 3166-1/2 source. Section 4 Part 1 §4.7.
+    columns:
+      - name: geography_id
+        description: >
+          Stable identifier. country_code for country-level rows
+          (e.g., 'KE'); country_code-region_code for sub-region rows
+          (e.g., 'US-CA', 'GB-SCT').
+        tests: [not_null, unique]
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country code.
+        tests: [not_null]
+      - name: country_name
+        description: Full English country name.
+        tests: [not_null]
+      - name: country_region
+        description: Continental grouping — Americas, EMEA, or APAC.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Americas, EMEA, APAC]
+      - name: country_subregion
+        description: More specific geographic grouping (e.g., Sub-Saharan Africa, Western Europe).
+        tests: [not_null]
+      - name: state_or_region_code
+        description: ISO 3166-2 region code without country prefix (e.g., 'CA' for California). Null for country-level rows.
+      - name: state_or_region_name
+        description: Full name of the state, province, or region. Null for country-level rows.
+      - name: default_currency
+        description: ISO 4217 primary currency for this geography.
+        tests: [not_null]
+      - name: default_timezone
+        description: IANA timezone identifier (e.g., 'Africa/Nairobi').
+        tests: [not_null]
+      - name: is_tax_jurisdiction
+        description: Whether this geography has its own distinct tax rules.
+        tests: [not_null]
+
+  - name: channel_mapping
+    description: >
+      Maps raw source values from each connector to canonical channel identifiers.
+      The staging layers use this seed to populate channel_id in facts and dimensions.
+      A source_value of '*' means the mapping applies to all values from that source
+      not matched by a more specific row.
+      Section 4 Part 1 §4.6.
+    columns:
+      - name: source_system
+        description: Source connector name — ga4, shopify, meta_ads, klaviyo, stripe.
+        tests: [not_null]
+      - name: source_value
+        description: Raw value from the source (e.g., 'google / organic', 'web', '*').
+        tests: [not_null]
+      - name: channel_id
+        description: Canonical channel identifier matching dim_channel.channel_id.
+        tests: [not_null]
+      - name: channel_name
+        description: Human-readable display name for this channel.
+        tests: [not_null]
+      - name: channel_category
+        description: Broad channel category (search, social, email, direct, online_store, retail, marketplace, other).
+        tests: [not_null]
+      - name: channel_subcategory
+        description: More specific subcategory (e.g., organic_search, paid_social).
+        tests: [not_null]
+      - name: is_paid
+        description: TRUE for channels associated with paid media spend.
+        tests: [not_null]
+      - name: platform
+        description: Platform identifier (google, facebook, shopify, etc.). Nullable.
+      - name: parent_channel
+        description: Hierarchical parent (e.g., 'meta' groups facebook and instagram). Nullable.
+
+  - name: product_category_mapping
+    description: >
+      Maps Shopify product_type strings to standardized canonical category and
+      subcategory values. Shopify's product_type is freeform and varies across
+      merchants; this seed normalizes them for consistent reporting.
+      Products with no matching product_type default to category 'Uncategorized'.
+      Clients customize this seed for their own product taxonomy.
+      Section 4 Part 1 §4.4.
+    columns:
+      - name: product_type
+        description: Shopify product_type value (case-sensitive match in staging).
+        tests: [not_null, unique]
+      - name: category
+        description: Canonical top-level category (e.g., Apparel, Beauty, Electronics).
+        tests: [not_null]
+      - name: subcategory
+        description: Canonical second-level category (e.g., Tops, Skincare, Audio).
+        tests: [not_null]
+
+  - name: holidays
+    description: >
+      Public and bank holidays by country and year, used to populate the
+      is_holiday and holiday_name columns in dim_date. Ships with US federal
+      holidays, UK bank holidays, and Kenya national holidays for 2024–2026.
+      Add additional country calendars or extend years by adding rows.
+      Section 4 Part 1 §4.5.
+    columns:
+      - name: date
+        description: Calendar date of the holiday.
+        tests: [not_null]
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country code.
+        tests: [not_null]
+      - name: holiday_name
+        description: Common name of the holiday (e.g., 'Christmas Day').
+        tests: [not_null]
+      - name: holiday_type
+        description: >
+          Classification of the holiday — federal, bank_holiday, national,
+          regional, or observance.
+        tests: [not_null]
+
+  - name: erasure_requests
+    description: >
+      GDPR Article 17 / CCPA erasure request log. Add rows here to trigger
+      PII erasure on the next dbt build (when the customer_erasure on-run-end
+      hook is active). The hook is commented out in dbt_project.yml — uncomment
+      once Phase 1 core models are materialized.
+      IMPORTANT: this seed is sensitive. In production, restrict access to the
+      seeds schema to RETAIL_ADMIN and RETAIL_PII_VIEWER roles only.
+      Section 4 Part 3 §4.41.
+    columns:
+      - name: customer_id
+        description: Canonical customer_id of the customer requesting erasure.
+        tests: [not_null]
+      - name: request_date
+        description: Date the erasure request was received and validated.
+        tests: [not_null]
+      - name: ticket_id
+        description: Internal compliance system ticket reference (e.g., GDPR-7421).
+        tests: [not_null]
+      - name: scope
+        description: >
+          Erasure scope — 'full_erasure' (nulls all PII, retains analytical row)
+          or 'marketing_only' (revokes consent flags only).
+        tests:
+          - not_null
+          - accepted_values:
+              values: [full_erasure, marketing_only]

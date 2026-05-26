@@ -1,0 +1,102 @@
+product_type,category,subcategory
+Men's Shirts,Apparel,Tops
+Men's T-Shirts,Apparel,Tops
+Men's Tees,Apparel,Tops
+Men's Polos,Apparel,Tops
+Men's Sweatshirts,Apparel,Tops
+Men's Hoodies,Apparel,Tops
+Men's Jackets,Apparel,Outerwear
+Men's Coats,Apparel,Outerwear
+Men's Jeans,Apparel,Bottoms
+Men's Trousers,Apparel,Bottoms
+Men's Shorts,Apparel,Bottoms
+Men's Suits,Apparel,Formal
+Men's Shoes,Footwear,Men's Shoes
+Men's Sneakers,Footwear,Sneakers
+Women's Tops,Apparel,Tops
+Women's T-Shirts,Apparel,Tops
+Women's Blouses,Apparel,Tops
+Women's Sweaters,Apparel,Tops
+Women's Hoodies,Apparel,Tops
+Women's Jackets,Apparel,Outerwear
+Women's Coats,Apparel,Outerwear
+Women's Dresses,Apparel,Dresses
+Women's Skirts,Apparel,Bottoms
+Women's Jeans,Apparel,Bottoms
+Women's Trousers,Apparel,Bottoms
+Women's Shorts,Apparel,Bottoms
+Women's Shoes,Footwear,Women's Shoes
+Women's Heels,Footwear,Heels
+Women's Boots,Footwear,Boots
+Women's Sneakers,Footwear,Sneakers
+Kids' Clothing,Apparel,Kids
+Kids' Shoes,Footwear,Kids
+Baby Clothing,Apparel,Baby
+Hats,Accessories,Hats
+Caps,Accessories,Hats
+Beanies,Accessories,Hats
+Scarves,Accessories,Scarves
+Bags,Accessories,Bags
+Handbags,Accessories,Bags
+Backpacks,Accessories,Bags
+Wallets,Accessories,Wallets
+Belts,Accessories,Belts
+Jewellery,Accessories,Jewellery
+Jewelry,Accessories,Jewellery
+Watches,Accessories,Watches
+Sunglasses,Accessories,Eyewear
+Skincare,Beauty,Skincare
+Moisturizer,Beauty,Skincare
+Cleanser,Beauty,Skincare
+Serum,Beauty,Skincare
+Sunscreen,Beauty,Skincare
+Makeup,Beauty,Makeup
+Foundation,Beauty,Makeup
+Lipstick,Beauty,Makeup
+Mascara,Beauty,Makeup
+Hair Care,Beauty,Hair
+Shampoo,Beauty,Hair
+Conditioner,Beauty,Hair
+Perfume,Beauty,Fragrance
+Cologne,Beauty,Fragrance
+Body Wash,Beauty,Body
+Candles,Home & Garden,Candles
+Diffusers,Home & Garden,Fragrance
+Home Fragrance,Home & Garden,Fragrance
+Cushions,Home & Garden,Soft Furnishings
+Throws,Home & Garden,Soft Furnishings
+Rugs,Home & Garden,Rugs
+Kitchenware,Home & Garden,Kitchen
+Mugs,Home & Garden,Kitchen
+Glassware,Home & Garden,Kitchen
+Cutting Boards,Home & Garden,Kitchen
+Art Prints,Home & Garden,Art & Decor
+Prints,Home & Garden,Art & Decor
+Posters,Home & Garden,Art & Decor
+Frames,Home & Garden,Art & Decor
+Plants,Home & Garden,Plants
+Coffee Beans,Food & Beverage,Coffee
+Coffee,Food & Beverage,Coffee
+Tea,Food & Beverage,Tea
+Supplements,Food & Beverage,Supplements
+Vitamins,Food & Beverage,Supplements
+Snacks,Food & Beverage,Snacks
+Chocolate,Food & Beverage,Confectionery
+Books,Books & Media,Books
+Stationery,Books & Media,Stationery
+Notebooks,Books & Media,Stationery
+Journals,Books & Media,Stationery
+Phone Cases,Electronics,Phone Accessories
+Chargers,Electronics,Charging
+Headphones,Electronics,Audio
+Earphones,Electronics,Audio
+Earbuds,Electronics,Audio
+Speakers,Electronics,Audio
+Laptop Bags,Electronics,Laptop Accessories
+Fitness Equipment,Sports & Outdoors,Fitness
+Yoga Mats,Sports & Outdoors,Yoga
+Water Bottles,Sports & Outdoors,Hydration
+Toys,Toys & Games,Toys
+Games,Toys & Games,Games
+Gift Cards,Gift Cards,Gift Cards
+Bundles,Bundles,Bundles

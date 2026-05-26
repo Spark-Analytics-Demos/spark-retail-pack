@@ -1,0 +1,88 @@
+date,country_code,holiday_name,holiday_type
+2024-01-01,US,New Year's Day,federal
+2024-01-15,US,Martin Luther King Jr. Day,federal
+2024-02-19,US,Presidents' Day,federal
+2024-05-27,US,Memorial Day,federal
+2024-06-19,US,Juneteenth National Independence Day,federal
+2024-07-04,US,Independence Day,federal
+2024-09-02,US,Labor Day,federal
+2024-10-14,US,Columbus Day,federal
+2024-11-11,US,Veterans Day,federal
+2024-11-28,US,Thanksgiving Day,federal
+2024-12-25,US,Christmas Day,federal
+2025-01-01,US,New Year's Day,federal
+2025-01-20,US,Martin Luther King Jr. Day,federal
+2025-02-17,US,Presidents' Day,federal
+2025-05-26,US,Memorial Day,federal
+2025-06-19,US,Juneteenth National Independence Day,federal
+2025-07-04,US,Independence Day,federal
+2025-09-01,US,Labor Day,federal
+2025-10-13,US,Columbus Day,federal
+2025-11-11,US,Veterans Day,federal
+2025-11-27,US,Thanksgiving Day,federal
+2025-12-25,US,Christmas Day,federal
+2026-01-01,US,New Year's Day,federal
+2026-01-19,US,Martin Luther King Jr. Day,federal
+2026-02-16,US,Presidents' Day,federal
+2026-05-25,US,Memorial Day,federal
+2026-06-19,US,Juneteenth National Independence Day,federal
+2026-07-04,US,Independence Day,federal
+2026-09-07,US,Labor Day,federal
+2026-10-12,US,Columbus Day,federal
+2026-11-11,US,Veterans Day,federal
+2026-11-26,US,Thanksgiving Day,federal
+2026-12-25,US,Christmas Day,federal
+2024-01-01,GB,New Year's Day,bank_holiday
+2024-03-29,GB,Good Friday,bank_holiday
+2024-04-01,GB,Easter Monday,bank_holiday
+2024-05-06,GB,Early May Bank Holiday,bank_holiday
+2024-05-27,GB,Spring Bank Holiday,bank_holiday
+2024-08-26,GB,Summer Bank Holiday,bank_holiday
+2024-12-25,GB,Christmas Day,bank_holiday
+2024-12-26,GB,Boxing Day,bank_holiday
+2025-01-01,GB,New Year's Day,bank_holiday
+2025-04-18,GB,Good Friday,bank_holiday
+2025-04-21,GB,Easter Monday,bank_holiday
+2025-05-05,GB,Early May Bank Holiday,bank_holiday
+2025-05-26,GB,Spring Bank Holiday,bank_holiday
+2025-08-25,GB,Summer Bank Holiday,bank_holiday
+2025-12-25,GB,Christmas Day,bank_holiday
+2025-12-26,GB,Boxing Day,bank_holiday
+2026-01-01,GB,New Year's Day,bank_holiday
+2026-04-03,GB,Good Friday,bank_holiday
+2026-04-06,GB,Easter Monday,bank_holiday
+2026-05-04,GB,Early May Bank Holiday,bank_holiday
+2026-05-25,GB,Spring Bank Holiday,bank_holiday
+2026-08-31,GB,Summer Bank Holiday,bank_holiday
+2026-12-25,GB,Christmas Day,bank_holiday
+2026-12-26,GB,Boxing Day,bank_holiday
+2024-01-01,KE,New Year's Day,national
+2024-03-29,KE,Good Friday,national
+2024-04-01,KE,Easter Monday,national
+2024-05-01,KE,Labour Day,national
+2024-06-01,KE,Madaraka Day,national
+2024-10-10,KE,Utamaduni Day,national
+2024-10-20,KE,Mashujaa Day,national
+2024-12-12,KE,Jamhuri Day,national
+2024-12-25,KE,Christmas Day,national
+2024-12-26,KE,Boxing Day,national
+2025-01-01,KE,New Year's Day,national
+2025-04-18,KE,Good Friday,national
+2025-04-21,KE,Easter Monday,national
+2025-05-01,KE,Labour Day,national
+2025-06-01,KE,Madaraka Day,national
+2025-10-10,KE,Utamaduni Day,national
+2025-10-20,KE,Mashujaa Day,national
+2025-12-12,KE,Jamhuri Day,national
+2025-12-25,KE,Christmas Day,national
+2025-12-26,KE,Boxing Day,national
+2026-01-01,KE,New Year's Day,national
+2026-04-03,KE,Good Friday,national
+2026-04-06,KE,Easter Monday,national
+2026-05-01,KE,Labour Day,national
+2026-06-01,KE,Madaraka Day,national
+2026-10-10,KE,Utamaduni Day,national
+2026-10-20,KE,Mashujaa Day,national
+2026-12-12,KE,Jamhuri Day,national
+2026-12-25,KE,Christmas Day,national
+2026-12-26,KE,Boxing Day,national
