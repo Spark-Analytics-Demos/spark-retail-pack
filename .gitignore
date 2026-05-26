@@ -13,7 +13,8 @@
 secrets/
 **/credentials.json
 **/service_account*.json
-profiles.yml         # dbt connection credentials — use profiles.yml.template instead
+# dbt connection credentials — use profiles.yml.template instead
+profiles.yml
 
 # -----------------------------------------------------------------------------
 # dbt
@@ -26,7 +27,8 @@ logs/
 *.duckdb            # local DuckDB caches if used for offline dev
 
 # dbt artifacts that should NOT be checked in
-**/.user.yml          # dbt local anonymous usage ID — machine-specific
+# dbt local anonymous usage ID — machine-specific
+**/.user.yml
 **/manifest.json
 **/catalog.json
 **/run_results.json
