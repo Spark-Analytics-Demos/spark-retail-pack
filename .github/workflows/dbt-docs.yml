@@ -13,19 +13,21 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
-# Required for GitHub Pages deployment
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 jobs:
   generate-docs:
     name: Generate dbt Docs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: 02_dbt_core
+
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      PII_HASH_SALT: ${{ secrets.PII_HASH_SALT }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,19 +38,17 @@ jobs:
           cache: pip
           cache-dependency-path: 02_dbt_core/requirements.txt
 
+      - name: Set up dbt profiles
+        run: mkdir -p ~/.dbt && cp profiles.yml.template ~/.dbt/profiles.yml
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
       - name: dbt deps
-        run: dbt deps --profiles-dir .
+        run: dbt deps
 
       - name: dbt docs generate
-        run: dbt docs generate --target staging --profiles-dir .
-        env:
-          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-          PII_HASH_SALT: ${{ secrets.PII_HASH_SALT }}
+        run: dbt docs generate --target staging
 
       - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v3
@@ -60,6 +60,9 @@ jobs:
     name: Deploy to GitHub Pages
     needs: generate-docs
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

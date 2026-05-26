@@ -85,8 +85,12 @@ jobs:
 
     env:
       SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      # SNOWFLAKE_USER / PASSWORD used by the dev/staging targets in profiles.yml
       SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_CI_USER }}
       SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_CI_PASSWORD }}
+      # SNOWFLAKE_CI_USER / CI_PASSWORD used by the ci target in profiles.yml
+      SNOWFLAKE_CI_USER: ${{ secrets.SNOWFLAKE_CI_USER }}
+      SNOWFLAKE_CI_PASSWORD: ${{ secrets.SNOWFLAKE_CI_PASSWORD }}
       PII_HASH_SALT: ${{ secrets.PII_HASH_SALT }}
       # Used by profiles.yml.template ci target to isolate each PR's schema
       GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -98,6 +102,10 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+          cache-dependency-path: 02_dbt_core/requirements.txt
+
+      - name: Set up dbt profiles
+        run: mkdir -p ~/.dbt && cp profiles.yml.template ~/.dbt/profiles.yml
 
       - name: Install dbt
         run: pip install -r requirements.txt
