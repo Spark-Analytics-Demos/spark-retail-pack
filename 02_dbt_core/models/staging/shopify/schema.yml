@@ -1,0 +1,669 @@
+version: 2
+
+models:
+  # ---------------------------------------------------------------------------
+  # stg_shopify__orders
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__orders
+    description: >
+      Renamed and cast Shopify order headers. One row per non-test order created
+      on or after min_order_date. Applies canonical order_status mapping per §6.4,
+      extracts UTM parameters from note_attributes, hashes PII (email, IP), and
+      derives device_category from browser_width. Feeds fact_orders and
+      fact_order_lines via int_orders_enriched.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: true
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: order_id
+        description: Shopify order ID (string). Primary key for this model.
+        tests: [not_null, unique]
+      - name: order_number
+        description: Merchant-facing order reference (e.g. "#1042"). May include the hash prefix.
+        tests: [not_null]
+      - name: shopify_customer_id
+        description: Shopify's internal customer ID. NULL for guest checkouts.
+      - name: order_timestamp
+        description: UTC timestamp when the order was placed.
+        tests: [not_null]
+      - name: order_date
+        description: Order date in the reporting timezone (var.reporting_timezone).
+        tests: [not_null]
+      - name: updated_at
+        description: UTC timestamp of the last modification to the order record.
+        tests: [not_null]
+      - name: cancelled_at
+        description: UTC timestamp of cancellation. NULL for non-cancelled orders.
+      - name: closed_at
+        description: UTC timestamp when the order was closed/archived.
+      - name: processed_at
+        description: UTC timestamp when payment was processed.
+      - name: customer_email_hash_at_order
+        description: SHA-256 of the normalized customer email at time of order. Stable cross-source join key.
+        tests: [not_null]
+      - name: order_status
+        description: >
+          Canonical order status derived from financial_status + cancelled_at per §6.4.
+          Values: pending, paid, fulfilled, cancelled, refunded, partial_refund, unknown.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [pending, paid, fulfilled, cancelled, refunded, partial_refund, unknown]
+      - name: financial_status
+        description: Raw Shopify financial_status value.
+        tests: [not_null]
+      - name: fulfillment_status
+        description: Raw Shopify fulfillment_status. NULL for unfulfilled orders.
+      - name: gross_amount
+        description: Order subtotal before discounts and taxes (Shopify subtotal_price).
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: discount_amount
+        description: Total discount applied to the order.
+        tests: [not_null]
+      - name: tax_amount
+        description: Total tax charged. May be 0.
+        tests: [not_null]
+      - name: shipping_amount
+        description: Shipping amount charged in the merchant's shop currency.
+        tests: [not_null]
+      - name: tip_amount
+        description: Tip amount (Shopify POS). 0 for online orders.
+        tests: [not_null]
+      - name: net_amount
+        description: Final amount charged (Shopify total_price = subtotal + tax + shipping - discounts).
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: original_currency_code
+        description: ISO 4217 currency code in which the order was placed.
+        tests: [not_null]
+      - name: source_name
+        description: Shopify sales channel identifier (e.g. "web", "pos", "recharge").
+      - name: landing_page_url
+        description: URL of the page where the session that led to checkout began.
+      - name: referrer_url
+        description: HTTP referrer URL for the order session.
+      - name: cart_id
+        description: Shopify cart token — links this order to an anonymous session in GA4 if present.
+      - name: utm_source
+        description: UTM source extracted from note_attributes. NULL if storefront doesn't write UTMs.
+        meta: {utm_param: true}
+      - name: utm_medium
+        description: UTM medium extracted from note_attributes.
+        meta: {utm_param: true}
+      - name: utm_campaign
+        description: UTM campaign extracted from note_attributes.
+        meta: {utm_param: true}
+      - name: utm_content
+        description: UTM content extracted from note_attributes.
+        meta: {utm_param: true}
+      - name: utm_term
+        description: UTM term extracted from note_attributes.
+        meta: {utm_param: true}
+      - name: device_category
+        description: "Device type derived from browser_width: mobile (<768px), tablet (768-1023px), desktop (>=1024px)."
+      - name: user_agent
+        description: Browser user-agent string at time of order.
+        meta: {pii: true}
+      - name: ip_address_hash
+        description: SHA-256 of the customer's browser IP. Never stored in plaintext.
+        meta: {pii: true}
+      - name: is_test_order
+        description: TRUE if Shopify flagged this order as a test. All test orders are filtered at staging.
+        tests: [not_null]
+      - name: is_subscription_order
+        description: TRUE if the order came from a subscription app (Recharge) or is tagged subscription.
+        tests: [not_null]
+      - name: tags_raw
+        description: Comma-separated order tags as returned by Shopify.
+      - name: note
+        description: Merchant-visible order note. May contain customer messages.
+      - name: discount_codes_raw
+        description: Array of discount code objects applied to this order (VARIANT).
+      - name: primary_discount_code
+        description: First discount code applied. NULL if no discount was used.
+      - name: shipping_country_code
+        description: ISO 3166-1 alpha-2 country code from the shipping address.
+      - name: shipping_province_code
+        description: Province or state code from the shipping address.
+      - name: billing_country_code
+        description: ISO 3166-1 alpha-2 country code from the billing address.
+
+  # ---------------------------------------------------------------------------
+  # stg_shopify__customers
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__customers
+    description: >
+      Renamed and cast Shopify customer profiles with PII fields hashed per §8.5.
+      One row per Shopify customer. The customer_email_hash is the canonical
+      cross-source identity key per ADR-003. B2B customers are flagged via tag
+      detection and company field presence. Feeds int_customer_identity_resolution.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: true
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: shopify_customer_id
+        description: Shopify's internal customer ID. Primary key.
+        tests: [not_null, unique]
+      - name: customer_email_hash
+        description: SHA-256 of the normalized (lowercase, trimmed) customer email. Canonical identity key.
+        tests: [not_null]
+      - name: phone_hash
+        description: SHA-256 of the normalized phone number. Used for Tier-2 identity matching (ADR-003).
+      - name: first_name_hash
+        description: SHA-256 of the trimmed first name. Never stored in plaintext.
+        meta: {pii: true}
+      - name: last_name_hash
+        description: SHA-256 of the trimmed last name. Never stored in plaintext.
+        meta: {pii: true}
+      - name: customer_status
+        description: >
+          Canonical customer status. Mapped from Shopify's state field.
+          Values: active, blocked, unknown.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [active, blocked, unknown]
+      - name: shopify_customer_state
+        description: Raw Shopify state value (enabled, disabled, declined, invited).
+        tests: [not_null]
+      - name: marketing_consent
+        description: TRUE if the customer has opted into marketing.
+        tests: [not_null]
+      - name: email_subscribed
+        description: >
+          TRUE if customer accepts email marketing per Shopify's accepts_marketing field.
+          This value is overridden by Klaviyo's consent status in int_customer_identity_resolution.
+        tests: [not_null]
+      - name: sms_subscribed
+        description: TRUE if customer accepts SMS marketing.
+        tests: [not_null]
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country code from the default shipping address.
+      - name: province_code
+        description: Province or state code from the default shipping address.
+      - name: city_hash
+        description: SHA-256 of the city name. Never stored in plaintext.
+        meta: {pii: true}
+      - name: postal_code_hash
+        description: SHA-256 of the postal code. Never stored in plaintext.
+        meta: {pii: true}
+      - name: company
+        description: Company name from the default address. Indicator of B2B customer.
+      - name: is_b2b_customer
+        description: >
+          TRUE if identified as B2B via LIKE match on tags (b2b, wholesale, business) or non-empty
+          company field. LIKE is used over array_contains to handle Shopify's "tag1, tag2" spacing.
+        tests: [not_null]
+      - name: customer_tags_raw
+        description: Comma-separated customer tags as returned by Shopify.
+      - name: customer_note
+        description: Merchant-visible customer note.
+      - name: orders_count
+        description: Total number of orders placed by this customer per Shopify's denormalized counter.
+      - name: total_spent
+        description: Total amount spent by this customer per Shopify's denormalized counter (in store currency).
+      - name: created_at
+        description: UTC timestamp of customer account creation.
+        tests: [not_null]
+      - name: updated_at
+        description: UTC timestamp of last profile modification.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # stg_shopify__order_line_items
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__order_line_items
+    description: >
+      Renamed and cast Shopify order line items. One row per line item per order.
+      Computes line_subtotal, line_net_amount, and was_promotional at staging.
+      Aggregates line_tax from the tax_lines VARIANT array. Feeds fact_order_lines.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: line_item_id
+        description: Shopify line item ID. Primary key.
+        tests: [not_null, unique]
+      - name: order_id
+        description: FK to stg_shopify__orders.order_id.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_shopify__orders')
+              field: order_id
+      - name: variant_id
+        description: FK to stg_shopify__product_variants.variant_id. NULL for custom/non-variant line items.
+      - name: product_id
+        description: FK to stg_shopify__products.product_id.
+      - name: sku
+        description: Stock-keeping unit. May be NULL for custom items or bundled products.
+      - name: line_item_name
+        description: Combined product and variant name at time of sale.
+      - name: product_title_at_sale
+        description: Product title captured at time of sale. Preserved for historical accuracy.
+        tests: [not_null]
+      - name: variant_title_at_sale
+        description: Variant title captured at time of sale.
+      - name: quantity
+        description: Number of units ordered on this line.
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: unit_price
+        description: Price per unit at time of sale (excluding discounts).
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: line_subtotal
+        description: quantity × unit_price (before line-level discounts).
+        tests: [not_null]
+      - name: line_discount
+        description: Total discount applied to this line item.
+        tests: [not_null]
+      - name: line_net_amount
+        description: line_subtotal minus line_discount. Excludes tax.
+        tests: [not_null]
+      - name: was_promotional
+        description: TRUE if any discount was applied to this line.
+        tests: [not_null]
+      - name: line_tax
+        description: Sum of all applicable tax amounts for this line (from tax_lines array).
+        tests: [not_null]
+      - name: fulfillment_status
+        description: Fulfillment status for this specific line item.
+      - name: requires_shipping
+        description: TRUE if this line item requires physical shipping.
+      - name: is_taxable
+        description: TRUE if this line item is subject to tax.
+      - name: is_gift_card
+        description: TRUE if this line item is a gift card.
+
+  # ---------------------------------------------------------------------------
+  # stg_shopify__refunds
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__refunds
+    description: >
+      Renamed and cast Shopify refund events. One row per refund. The
+      refund_line_items and refund_transactions VARIANT columns are unwound
+      in int_orders_enriched to compute line-level and order-level refund amounts.
+      Feeds fact_refunds.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: refund_id
+        description: Shopify refund ID. Primary key.
+        tests: [not_null, unique]
+      - name: order_id
+        description: FK to stg_shopify__orders.order_id.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_shopify__orders')
+              field: order_id
+      - name: refund_timestamp
+        description: UTC timestamp when the refund was created.
+        tests: [not_null]
+      - name: refund_date
+        description: Refund date in the reporting timezone.
+        tests: [not_null]
+      - name: processed_at
+        description: UTC timestamp when the refund was processed by the payment gateway.
+      - name: refund_note
+        description: Merchant-visible reason for the refund.
+      - name: is_restock
+        description: TRUE if returned inventory was restocked.
+        tests: [not_null]
+      - name: refund_line_items
+        description: >
+          VARIANT array of line-level refund details (quantity, amount per SKU).
+          Unwound in int_orders_enriched.
+      - name: refund_transactions
+        description: >
+          VARIANT array of payment-side refund records (amount, gateway, currency).
+          Summed in int_orders_enriched to compute fact_orders.refunded_amount.
+
+  # ---------------------------------------------------------------------------
+  # stg_shopify__products
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__products
+    description: >
+      Renamed and cast Shopify product master records. One row per product (parent).
+      Variants are in stg_shopify__product_variants. These two are joined in
+      int_orders_enriched and in dim_product (variant grain).
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: product_id
+        description: Shopify product ID. Primary key.
+        tests: [not_null, unique]
+      - name: product_title
+        description: Product display name.
+        tests: [not_null]
+      - name: product_handle
+        description: URL slug for the product on the Shopify storefront.
+        tests: [not_null]
+      - name: product_type
+        description: >
+          Merchant-defined product type. Freeform; mapped to canonical
+          category/subcategory via seeds/product_category_mapping.csv.
+      - name: vendor
+        description: Brand or manufacturer name.
+      - name: is_active
+        description: TRUE if product status is 'active' (not draft or archived).
+        tests: [not_null]
+      - name: product_status
+        description: Raw Shopify product status (active, draft, archived).
+        tests:
+          - not_null
+          - accepted_values:
+              values: [active, draft, archived]
+      - name: published_at
+        description: UTC timestamp when the product was published to the storefront. NULL for drafts.
+      - name: image_url
+        description: URL of the primary product image.
+      - name: product_tags_raw
+        description: Comma-separated product tags. Used downstream for category overrides and B2B detection.
+      - name: created_at
+        description: UTC timestamp of product creation.
+        tests: [not_null]
+      - name: updated_at
+        description: UTC timestamp of last product modification.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # stg_shopify__product_variants
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__product_variants
+    description: >
+      Renamed and cast Shopify product variants. One row per variant (SKU-level).
+      Variant is the grain of dim_product. Joins to stg_shopify__inventory_items
+      via inventory_item_id for cost and customs data.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: variant_id
+        description: Shopify variant ID. Primary key.
+        tests: [not_null, unique]
+      - name: product_id
+        description: FK to stg_shopify__products.product_id.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_shopify__products')
+              field: product_id
+      - name: sku
+        description: Stock-keeping unit. Nullable — custom line items may lack a SKU.
+      - name: variant_title
+        description: Variant name (e.g. "Red / Large"). "Default Title" for single-variant products.
+        tests: [not_null]
+      - name: barcode
+        description: UPC, EAN, or ISBN barcode. Nullable.
+      - name: option_1
+        description: First variant option value (e.g. Color).
+      - name: option_2
+        description: Second variant option value (e.g. Size).
+      - name: option_3
+        description: Third variant option value.
+      - name: unit_price
+        description: Current selling price of this variant.
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: compare_at_price
+        description: Original price before any sale. NULL if not on sale.
+      - name: inventory_item_id
+        description: FK to stg_shopify__inventory_items.inventory_item_id.
+        tests: [not_null]
+      - name: inventory_management
+        description: Who manages inventory (shopify, fulfillment service name, or null for untracked).
+      - name: inventory_policy
+        description: >
+          What happens when stock reaches 0: deny (stop selling) or continue (allow oversell).
+        tests:
+          - accepted_values:
+              values: [deny, continue]
+      - name: inventory_quantity
+        description: Current on-hand quantity across all locations (denormalized; stg_shopify__inventory_levels has per-location truth).
+      - name: requires_shipping
+        description: TRUE if this variant requires physical shipment.
+        tests: [not_null]
+      - name: is_taxable
+        description: TRUE if this variant is subject to tax.
+        tests: [not_null]
+      - name: weight
+        description: Physical weight of the variant.
+      - name: weight_unit
+        description: Weight unit (g, kg, lb, oz).
+      - name: created_at
+        description: UTC timestamp of variant creation.
+        tests: [not_null]
+      - name: updated_at
+        description: UTC timestamp of last variant modification.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # stg_shopify__inventory_levels
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__inventory_levels
+    description: >
+      Per-location inventory quantities. One row per (inventory_item_id, location_id).
+      Natural key is the composite (inventory_item_id, location_id). Feeds
+      fact_inventory_snapshot. Joined to stg_shopify__product_variants via
+      inventory_item_id to resolve the product/SKU.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: inventory_item_id
+        description: FK to stg_shopify__inventory_items.inventory_item_id.
+        tests: [not_null]
+      - name: location_id
+        description: FK to stg_shopify__locations.location_id.
+        tests: [not_null]
+      - name: quantity_available
+        description: Units available for sale (net of committed). Can be negative if oversell is allowed.
+        tests: [not_null]
+      - name: quantity_incoming
+        description: Units incoming from transfer orders. 0 if Purchase Orders feature is not active.
+        tests: [not_null]
+      - name: updated_at
+        description: UTC timestamp of last inventory level update.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # stg_shopify__inventory_items
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__inventory_items
+    description: >
+      Inventory item metadata — cost, barcode, country of origin, HS code.
+      One row per inventory item (1:1 with product variants via inventory_item_id).
+      unit_cost is NULL when the merchant has not entered cost data (common).
+      Feeds dim_product for cost and customs attributes.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: inventory_item_id
+        description: Shopify inventory item ID. Primary key. Matches stg_shopify__product_variants.inventory_item_id.
+        tests: [not_null, unique]
+      - name: sku
+        description: Stock-keeping unit. Mirrors the variant SKU.
+      - name: unit_cost
+        description: >
+          Merchant-entered cost of goods per unit. NULL if not tracked (common).
+          Downstream KPIs requiring cost (gross margin, COGS) degrade gracefully to NULL.
+      - name: country_of_origin
+        description: ISO 3166-1 alpha-2 country code of manufacturing origin. Used for customs declarations.
+      - name: province_of_origin
+        description: Province or state of manufacturing origin. Typically NULL.
+      - name: hs_code
+        description: Harmonized System tariff code. Used for international shipping duty calculation.
+      - name: inventory_tracked
+        description: TRUE if inventory quantity is tracked for this item.
+        tests: [not_null]
+      - name: requires_shipping
+        description: TRUE if this item requires physical shipping.
+        tests: [not_null]
+      - name: created_at
+        description: UTC timestamp of inventory item creation.
+        tests: [not_null]
+      - name: updated_at
+        description: UTC timestamp of last inventory item modification.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # stg_shopify__locations
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__locations
+    description: >
+      Renamed and cast Shopify locations — physical warehouses, retail stores,
+      and third-party fulfillment service endpoints. Feeds dim_warehouse_location.
+      Inactive (archived) locations are retained for historical inventory queries.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: location_id
+        description: Shopify location ID. Primary key.
+        tests: [not_null, unique]
+      - name: location_name
+        description: Merchant-defined name for this location (e.g. "Main Warehouse", "London Store").
+        tests: [not_null]
+      - name: is_active
+        description: FALSE for archived or closed locations.
+        tests: [not_null]
+      - name: is_legacy
+        description: TRUE for legacy locations created before Shopify's multi-location rollout.
+        tests: [not_null]
+      - name: address_line_1
+        description: Street address line 1.
+      - name: address_line_2
+        description: Street address line 2.
+      - name: city
+        description: City of the location.
+      - name: postal_code
+        description: Postal/ZIP code.
+      - name: province
+        description: Full province or state name.
+      - name: province_code
+        description: ISO 3166-2 province/state code.
+      - name: country_name
+        description: Full country name.
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country code.
+        tests: [not_null]
+      - name: phone
+        description: Location phone number.
+      - name: fulfillment_service
+        description: Fulfillment service identifier. NULL for merchant-owned locations.
+      - name: created_at
+        description: UTC timestamp of location creation.
+        tests: [not_null]
+      - name: updated_at
+        description: UTC timestamp of last location modification.
+        tests: [not_null]
+
+  # ---------------------------------------------------------------------------
+  # stg_shopify__transactions
+  # ---------------------------------------------------------------------------
+  - name: stg_shopify__transactions
+    description: >
+      Renamed and cast Shopify payment transactions. Filtered to successful
+      transactions only at staging. One row per transaction. Feeds dim_payment_method
+      (for gateway, card_brand, digital_wallet) and reconciliation in fact_orders.
+      The card_bin is retained for card-type analytics but is not PII.
+    meta:
+      owner: analytics_engineering
+      classification: silver
+      pii_present: false
+      source_docs: "01_design_docs/06_connector_specs.md §6.4"
+    columns:
+      - name: transaction_id
+        description: Shopify transaction ID. Primary key.
+        tests: [not_null, unique]
+      - name: order_id
+        description: FK to stg_shopify__orders.order_id.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_shopify__orders')
+              field: order_id
+      - name: transaction_kind
+        description: "Type of transaction: sale, refund, void, capture, authorization."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [sale, refund, void, capture, authorization]
+      - name: transaction_status
+        description: "Transaction outcome. Staging filters to success only."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [success]
+      - name: payment_gateway
+        description: Payment gateway identifier (e.g. shopify_payments, paypal, stripe).
+        tests: [not_null]
+      - name: card_brand
+        description: Card network (Visa, Mastercard, Amex, etc.). NULL for non-card transactions.
+      - name: card_bin
+        description: First 6 digits of the card number. Used for card-type analytics. Not considered PII.
+      - name: card_exp_month
+        description: Card expiry month. Nullable.
+      - name: card_exp_year
+        description: Card expiry year. Nullable.
+      - name: digital_wallet
+        description: Digital wallet used (apple_pay, google_pay, etc.). NULL for standard card payments.
+      - name: transaction_amount
+        description: Amount of this transaction in currency_code.
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: currency_code
+        description: ISO 4217 currency code for this transaction.
+        tests: [not_null]
+      - name: maximum_refundable
+        description: Maximum amount that can be refunded against this transaction.
+        tests: [not_null]
+      - name: authorization_code
+        description: Payment gateway authorization code.
+      - name: error_code
+        description: Error code for failed transactions. NULL for successful ones (staging filters to success).
+      - name: error_message
+        description: Human-readable error message. NULL for successful transactions.
+      - name: parent_transaction_id
+        description: For refund/void transactions, the ID of the original sale transaction.
+      - name: created_at
+        description: UTC timestamp when this transaction was created.
+        tests: [not_null]
+      - name: processed_at
+        description: UTC timestamp when this transaction was processed by the gateway.
