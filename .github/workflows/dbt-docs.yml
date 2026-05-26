@@ -1,0 +1,70 @@
+name: Publish dbt Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '02_dbt_core/**'
+  # Allow manual trigger to refresh docs without a code change
+  workflow_dispatch:
+
+# Only one docs publish at a time; latest push wins
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+# Required for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  generate-docs:
+    name: Generate dbt Docs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 02_dbt_core
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: 02_dbt_core/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: dbt deps
+        run: dbt deps --profiles-dir .
+
+      - name: dbt docs generate
+        run: dbt docs generate --target staging --profiles-dir .
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          PII_HASH_SALT: ${{ secrets.PII_HASH_SALT }}
+
+      - name: Upload docs artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # dbt docs generate writes index.html + manifest.json + catalog.json here
+          path: 02_dbt_core/target
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    needs: generate-docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

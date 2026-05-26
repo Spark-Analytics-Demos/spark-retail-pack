@@ -173,10 +173,10 @@ Configure ingestion for all 5 sources. Use Fivetran, Airbyte, or whichever tool 
 
 ## 0.7 Initial documentation site (~0.5 eng-week)
 
-- [ ] `dbt docs generate` runs successfully (will produce empty docs initially)
-- [ ] `dbt docs serve` accessible locally
-- [ ] Plan for hosting dbt docs (GitHub Pages, dbt Cloud, custom — decide and stub)
-- [ ] README files updated in `02_dbt_core/` and `03_dbt_pro/` to reflect that scaffolding exists
+- [ ] `dbt docs generate` runs successfully — run locally once dbt is installed: `pip install -r requirements.txt && dbt deps && dbt docs generate`; also runs automatically in CI via `.github/workflows/dbt-docs.yml` on every push to main
+- [ ] `dbt docs serve` accessible locally — run `dbt docs serve` after `dbt docs generate`; opens at http://localhost:8080
+- [x] Plan for hosting dbt docs decided: **GitHub Pages** — `.github/workflows/dbt-docs.yml` generates docs and publishes via `actions/deploy-pages` on every push to main (2026-05-26). **Manual step required**: enable GitHub Pages in repo Settings → Pages → Source: "GitHub Actions"
+- [x] README files updated in `02_dbt_core/` and `03_dbt_pro/` — added setup guide, project structure, conventions reference (2026-05-26)
 
 ---
 
