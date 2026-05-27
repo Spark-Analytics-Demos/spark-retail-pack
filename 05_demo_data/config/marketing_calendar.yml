@@ -1,0 +1,375 @@
+# Marketing calendar for Northwind Co. 2026
+# Defines Meta Ads campaigns and Klaviyo campaigns/flows
+
+demo_year: 2026
+
+# Annual spend targets per §9.3
+annual_spend:
+  meta_ads_usd: 1_800_000
+  google_ads_usd: 900_000     # Generated as 'generated' source_system per §9.3
+  email_platform_usd: 60_000  # Klaviyo platform cost, not media spend
+
+# Meta Ads campaigns — campaign → ad_sets → ads hierarchy
+meta_campaigns:
+  - id: "MC001"
+    name: "Brand Awareness - Always On"
+    objective: "REACH"
+    status: "ACTIVE"
+    start_date: "2026-01-01"
+    end_date: "2026-12-31"
+    daily_budget_usd: 800
+    ad_sets:
+      - id: "AS001"
+        name: "Lookalike - Top Customers"
+        status: "ACTIVE"
+        ads:
+          - id: "AD001"
+            name: "Lifestyle_Spring_V1"
+            status: "ACTIVE"
+          - id: "AD002"
+            name: "Lifestyle_Fall_V1"
+            status: "ACTIVE"
+
+  - id: "MC002"
+    name: "Prospecting - Spring/Summer Collection"
+    objective: "CONVERSIONS"
+    status: "ACTIVE"
+    start_date: "2026-03-15"
+    end_date: "2026-08-31"
+    daily_budget_usd: 1200
+    ad_sets:
+      - id: "AS002"
+        name: "Interest - Fashion & Style"
+        status: "ACTIVE"
+        ads:
+          - id: "AD003"
+            name: "SS26_Collection_Carousel"
+            status: "ACTIVE"
+          - id: "AD004"
+            name: "SS26_Collection_Video"
+            status: "ACTIVE"
+      - id: "AS003"
+        name: "Lookalike - Recent Purchasers"
+        status: "ACTIVE"
+        ads:
+          - id: "AD005"
+            name: "SS26_New_Arrivals_Static"
+            status: "ACTIVE"
+
+  - id: "MC003"
+    name: "Prospecting - Fall Collection"
+    objective: "CONVERSIONS"
+    status: "ACTIVE"
+    start_date: "2026-08-15"
+    end_date: "2026-11-20"
+    daily_budget_usd: 1500
+    ad_sets:
+      - id: "AS004"
+        name: "Interest - Outdoor & Adventure"
+        status: "ACTIVE"
+        ads:
+          - id: "AD006"
+            name: "Fall26_Outerwear_Carousel"
+            status: "ACTIVE"
+          - id: "AD007"
+            name: "Fall26_Sweaters_Static"
+            status: "ACTIVE"
+      - id: "AS005"
+        name: "Lookalike - Fall Purchasers"
+        status: "ACTIVE"
+        ads:
+          - id: "AD008"
+            name: "Fall26_Heritage_Jacket_Video"
+            status: "ACTIVE"
+
+  - id: "MC004"
+    name: "Retargeting - Website Visitors"
+    objective: "CONVERSIONS"
+    status: "ACTIVE"
+    start_date: "2026-01-01"
+    end_date: "2026-12-31"
+    daily_budget_usd: 600
+    ad_sets:
+      - id: "AS006"
+        name: "Cart Abandoners - 1-7 Days"
+        status: "ACTIVE"
+        ads:
+          - id: "AD009"
+            name: "Cart_Recovery_Dynamic"
+            status: "ACTIVE"
+          - id: "AD010"
+            name: "Cart_Recovery_Discount"
+            status: "ACTIVE"
+      - id: "AS007"
+        name: "Product Viewers - 14 Days"
+        status: "ACTIVE"
+        ads:
+          - id: "AD011"
+            name: "Product_Retarget_Dynamic"
+            status: "ACTIVE"
+
+  - id: "MC005"
+    name: "Black Friday / Cyber Monday Sale"
+    objective: "CONVERSIONS"
+    status: "ACTIVE"
+    start_date: "2026-11-15"
+    end_date: "2026-12-01"
+    daily_budget_usd: 8000
+    ad_sets:
+      - id: "AS008"
+        name: "Broad - BFCM Sale"
+        status: "ACTIVE"
+        ads:
+          - id: "AD012"
+            name: "BFCM_Sale_Announcement"
+            status: "ACTIVE"
+          - id: "AD013"
+            name: "BFCM_Countdown_Video"
+            status: "ACTIVE"
+          - id: "AD014"
+            name: "BFCM_Best_Sellers_Carousel"
+            status: "ACTIVE"
+      - id: "AS009"
+        name: "Retargeting - BFCM"
+        status: "ACTIVE"
+        ads:
+          - id: "AD015"
+            name: "BFCM_Cart_Abandoners"
+            status: "ACTIVE"
+
+  - id: "MC006"
+    name: "Holiday Gift Guide"
+    objective: "CONVERSIONS"
+    status: "ACTIVE"
+    start_date: "2026-11-25"
+    end_date: "2026-12-25"
+    daily_budget_usd: 3000
+    ad_sets:
+      - id: "AS010"
+        name: "Gift Buyers - Broad"
+        status: "ACTIVE"
+        ads:
+          - id: "AD016"
+            name: "Holiday_Gift_Guide_Carousel"
+            status: "ACTIVE"
+          - id: "AD017"
+            name: "Holiday_Gifting_Static"
+            status: "ACTIVE"
+
+  - id: "MC007"
+    name: "New Year - Fresh Start"
+    objective: "REACH"
+    status: "ACTIVE"
+    start_date: "2026-01-01"
+    end_date: "2026-02-28"
+    daily_budget_usd: 500
+    ad_sets:
+      - id: "AS011"
+        name: "Interest - Lifestyle"
+        status: "ACTIVE"
+        ads:
+          - id: "AD018"
+            name: "NewYear_Essentials_Static"
+            status: "ACTIVE"
+
+  - id: "MC008"
+    name: "Valentine's Day"
+    objective: "CONVERSIONS"
+    status: "ACTIVE"
+    start_date: "2026-02-01"
+    end_date: "2026-02-14"
+    daily_budget_usd: 700
+    ad_sets:
+      - id: "AS012"
+        name: "Gift Givers"
+        status: "ACTIVE"
+        ads:
+          - id: "AD019"
+            name: "Valentines_Gift_Ideas"
+            status: "ACTIVE"
+
+  - id: "MC009"
+    name: "Spring Launch - Resort Wear"
+    objective: "CONVERSIONS"
+    status: "ACTIVE"
+    start_date: "2026-02-20"
+    end_date: "2026-04-30"
+    daily_budget_usd: 900
+    ad_sets:
+      - id: "AS013"
+        name: "Interest - Travel & Vacation"
+        status: "ACTIVE"
+        ads:
+          - id: "AD020"
+            name: "ResortWear_Launch_Video"
+            status: "ACTIVE"
+          - id: "AD021"
+            name: "ResortWear_Collection_Carousel"
+            status: "ACTIVE"
+
+  - id: "MC010"
+    name: "Back to School"
+    objective: "CONVERSIONS"
+    status: "ACTIVE"
+    start_date: "2026-07-15"
+    end_date: "2026-09-15"
+    daily_budget_usd: 1100
+    ad_sets:
+      - id: "AS014"
+        name: "Students & Young Adults"
+        status: "ACTIVE"
+        ads:
+          - id: "AD022"
+            name: "BTS_Essentials_Carousel"
+            status: "ACTIVE"
+          - id: "AD023"
+            name: "BTS_Bundle_Offer"
+            status: "ACTIVE"
+
+# Klaviyo flows (automated)
+klaviyo_flows:
+  - id: "FL001"
+    name: "Welcome Series"
+    status: "live"
+    trigger: "new_subscriber"
+    emails:
+      - day: 0
+        subject: "Welcome to Northwind Co. — Here's 10% Off"
+      - day: 3
+        subject: "Our Most-Loved Pieces Right Now"
+      - day: 7
+        subject: "The Northwind Story"
+
+  - id: "FL002"
+    name: "Abandoned Cart"
+    status: "live"
+    trigger: "cart_abandoned"
+    emails:
+      - hour: 1
+        subject: "You left something behind"
+      - hour: 24
+        subject: "Still thinking it over? Here's 5% off"
+      - hour: 72
+        subject: "Last chance — your cart is expiring"
+
+  - id: "FL003"
+    name: "Post-Purchase"
+    status: "live"
+    trigger: "order_placed"
+    emails:
+      - day: 3
+        subject: "Your order is on its way!"
+      - day: 14
+        subject: "How do you like your purchase?"
+      - day: 30
+        subject: "Complete the look"
+
+  - id: "FL004"
+    name: "Win-Back - 90 Day Lapsed"
+    status: "live"
+    trigger: "90_days_no_purchase"
+    emails:
+      - day: 0
+        subject: "We miss you, {first_name}"
+      - day: 7
+        subject: "Here's 15% off — just for you"
+
+  - id: "FL005"
+    name: "Browse Abandonment"
+    status: "live"
+    trigger: "product_viewed_no_purchase"
+    emails:
+      - hour: 4
+        subject: "Still eyeing the {product_name}?"
+
+# Klaviyo one-time campaigns (monthly newsletters + seasonal)
+klaviyo_campaigns:
+  - id: "KC001"
+    name: "January Newsletter - New Year New Wardrobe"
+    subject: "New Year, New Wardrobe: Our Top Picks for 2026"
+    send_date: "2026-01-08"
+    status: "sent"
+
+  - id: "KC002"
+    name: "February - Valentine's Day Gift Guide"
+    subject: "Gifts They'll Actually Love (From $28)"
+    send_date: "2026-02-05"
+    status: "sent"
+
+  - id: "KC003"
+    name: "March - Spring Collection Launch"
+    subject: "Spring Is Here: Shop the New Collection"
+    send_date: "2026-03-02"
+    status: "sent"
+
+  - id: "KC004"
+    name: "April - Resort Wear Reminder"
+    subject: "Still 22% Off — Resort Wear Won't Last"
+    send_date: "2026-04-20"
+    status: "sent"
+
+  - id: "KC005"
+    name: "May Newsletter - Memorial Day Weekend"
+    subject: "Memorial Day Weekend: 20% Off Sitewide"
+    send_date: "2026-05-21"
+    status: "sent"
+
+  - id: "KC006"
+    name: "June - Summer Must-Haves"
+    subject: "Summer Essentials: Shorts, Tanks & More"
+    send_date: "2026-06-04"
+    status: "sent"
+
+  - id: "KC007"
+    name: "June - Sweater Price Adjustment Notice"
+    subject: "Upgraded Craftsmanship: Our Sweater Collection"
+    send_date: "2026-06-15"
+    status: "sent"
+
+  - id: "KC008"
+    name: "July Newsletter - Mid-Season Picks"
+    subject: "Mid-Season Edit: What We're Wearing Right Now"
+    send_date: "2026-07-09"
+    status: "sent"
+
+  - id: "KC009"
+    name: "August - Fall Preview"
+    subject: "First Look: Fall 2026 Collection"
+    send_date: "2026-08-20"
+    status: "sent"
+
+  - id: "KC010"
+    name: "September - Cargo Pants Feature"
+    subject: "The Cargo Pant Everyone's Talking About"
+    send_date: "2026-09-17"
+    status: "sent"
+
+  - id: "KC011"
+    name: "October - Fall Outerwear"
+    subject: "Your Fall Jacket Is Waiting"
+    send_date: "2026-10-01"
+    status: "sent"
+
+  - id: "KC012"
+    name: "November - Early Black Friday Access"
+    subject: "VIP Early Access: 25% Off Starts Now"
+    send_date: "2026-11-20"
+    status: "sent"
+
+  - id: "KC013"
+    name: "November - Black Friday Launch"
+    subject: "IT'S HERE: Up to 40% Off + Free Shipping"
+    send_date: "2026-11-27"
+    status: "sent"
+
+  - id: "KC014"
+    name: "December - Holiday Gift Guide"
+    subject: "The Northwind Gift Guide: Perfect Picks for Everyone"
+    send_date: "2026-12-03"
+    status: "sent"
+
+  - id: "KC015"
+    name: "December - Last Shipping Day"
+    subject: "ORDER BY MIDNIGHT: Last Day for Holiday Delivery"
+    send_date: "2026-12-18"
+    status: "sent"

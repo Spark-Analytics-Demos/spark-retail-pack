@@ -1,0 +1,136 @@
+# =============================================================================
+# expected_values.yml — Known correct KPI values for CI validation
+# Per §9.9: these values are committed after running the Medium tier generator
+# (seed=42) and confirming outputs are correct. CI runs dbt against this data
+# and fails if any KPI deviates beyond its tolerance.
+#
+# Status: TEMPLATE — run `python generators/main.py --tier medium` to populate
+# the metrics section with actual values, then commit those numbers here.
+#
+# Tolerances:
+#   Absolute counts and amounts:  ±0    (exact match required)
+#   Ratio metrics (rates, %):     ±0.5% relative
+# =============================================================================
+
+year: 2026
+tier: medium
+seed: 42
+
+# Populated after first successful Medium tier generation + dbt run.
+# Values below are representative targets from §9.9 design doc.
+# Replace with generator-computed values before enabling CI validation.
+
+metrics:
+
+  sales:
+    gmv:
+      year: 24_847_320.50           # ~$24.8M
+      quarters:
+        Q1: 4_982_140.00
+        Q2: 5_493_870.00
+        Q3: 6_122_540.50
+        Q4: 8_248_770.00            # Black Friday boost
+      months:
+        "2026-11": 3_182_640.00
+        "2026-12": 2_704_350.00
+      tolerance: 0                  # exact match required
+
+    order_count:
+      year: 119_843
+      tolerance: 0
+
+    average_order_value:
+      year: 207.39
+      tolerance_pct: 0.5
+
+    refund_rate:
+      year_pct: 4.12
+      tolerance_pct: 0.5
+
+    revenue_growth:
+      "2026-11_vs_2026-10_pct": 78.4
+      tolerance_pct: 1.0
+
+  customer:
+    new_customers:
+      year: 84_672
+      "2026-09": 7_438             # Story 4: viral moment spike
+      tolerance: 0
+
+    active_customers_30d:
+      "2026-12-31": 47_281
+      "2026-09-15": 62_310         # viral moment peak
+      tolerance_pct: 0.5
+
+    repeat_purchase_rate:
+      year_pct: 24.6
+      "2026-07_pct": 22.1          # Story 3: churn dip
+      "2026-09_pct": 26.4
+      tolerance_pct: 0.5
+
+    cac_by_channel:
+      year:
+        meta: 64.30
+        referral: 13.40
+      tolerance_pct: 1.0
+
+  inventory:
+    total_inventory_value:
+      "2026-04-08": 2_847_320      # Just before Story 2
+      "2026-04-15": 2_653_180      # During Story 2 stockout
+      tolerance_pct: 0.5
+
+    stockout_rate:
+      "2026-04-15_pct": 3.4        # Story 2 peak
+      "2026-12-01_pct": 8.7        # Story 1 Black Friday aftermath
+      tolerance_pct: 0.5
+
+    inventory_turnover:
+      year: 5.82
+      tolerance_pct: 1.0
+
+    sell_through_rate:
+      resort_wear_30d_pct: 22.0    # Story 5: failed product line
+      tolerance_pct: 2.0
+
+  marketing:
+    total_meta_spend:
+      year: 1_800_000
+      tolerance_pct: 5.0           # Daily budget noise
+
+    roas:
+      year: 13.8
+      "2026-09": 18.4              # Viral moment
+      tolerance_pct: 2.0
+
+# Story arc validation checkpoints
+story_checkpoints:
+
+  story_1_black_friday:
+    peak_day: "2026-11-28"
+    peak_daily_orders_min: 1200    # ~1,650 at Medium tier
+    peak_daily_gmv_min: 400_000
+    bfcm_window_new_customers_min: 3_000
+
+  story_2_inventory_crisis:
+    stockout_sku: "OJ-001-MED-BLU"
+    stockout_start: "2026-04-08"
+    stockout_end: "2026-04-25"
+    restock_date: "2026-04-26"
+    inventory_zero_during_stockout: true
+
+  story_3_pricing_churn:
+    repeat_rate_july_max_pct: 24.0    # should be ~22%, but allow margin
+    repeat_rate_may_min_pct: 26.0
+
+  story_4_viral_moment:
+    viral_sku: "BP-001-REG-KHA"
+    viral_start: "2026-09-14"
+    stockout_date: "2026-09-22"
+    sep_new_customers_min: 5_000
+
+  story_5_resort_wear:
+    launch_date: "2026-03-01"
+    sell_through_30d_max_pct: 28.0   # should be ~22%
+    clearance_start: "2026-05-15"
+    slow_mover_count_min: 12

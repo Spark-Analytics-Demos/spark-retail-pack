@@ -1,0 +1,129 @@
+company:
+  name: "Northwind Co."
+  industry: "Direct-to-consumer apparel and accessories"
+  founded: 2022
+  headquarters:
+    city: "Portland"
+    state: "OR"
+    country_code: "US"
+  fiscal_year_end_month: 12
+
+  shopify:
+    store_domain: "northwindco.myshopify.com"
+    shop_name: "Northwind Co."
+    # Single fulfillment location (v1 — single warehouse per §9.11)
+    locations:
+      - id: "LOC001"
+        name: "Portland Fulfillment Center"
+        address1: "1420 NW Lovejoy St"
+        city: "Portland"
+        province: "Oregon"
+        province_code: "OR"
+        country_code: "US"
+        zip: "97209"
+        phone: "+15033210000"
+        active: true
+
+  stripe:
+    account_id: "acct_1NwDemo0001NWCo"
+    livemode: true
+
+  meta_ads:
+    account_id: "901234567890"
+    ad_account_currency: "USD"
+
+  klaviyo:
+    account_id: "NWCO01"
+
+geography:
+  # Market share per §9.3
+  markets:
+    - country_code: "US"
+      country_name: "United States"
+      currency: "USD"
+      share: 0.70
+      regions:
+        - code: "CA"
+          name: "California"
+          weight: 0.18
+        - code: "NY"
+          name: "New York"
+          weight: 0.16
+        - code: "TX"
+          name: "Texas"
+          weight: 0.14
+        - code: "FL"
+          name: "Florida"
+          weight: 0.12
+        - code: "WA"
+          name: "Washington"
+          weight: 0.10
+        - code: "OR"
+          name: "Oregon"
+          weight: 0.08
+        - code: "CO"
+          name: "Colorado"
+          weight: 0.07
+        - code: "IL"
+          name: "Illinois"
+          weight: 0.05
+        - code: "MA"
+          name: "Massachusetts"
+          weight: 0.05
+        - code: "GA"
+          name: "Georgia"
+          weight: 0.05
+    - country_code: "CA"
+      country_name: "Canada"
+      currency: "CAD"
+      share: 0.15
+      regions:
+        - code: "ON"
+          name: "Ontario"
+          weight: 0.45
+        - code: "BC"
+          name: "British Columbia"
+          weight: 0.25
+        - code: "AB"
+          name: "Alberta"
+          weight: 0.20
+        - code: "QC"
+          name: "Quebec"
+          weight: 0.10
+    - country_code: "GB"
+      country_name: "United Kingdom"
+      currency: "GBP"
+      share: 0.10
+      regions:
+        - code: "ENG"
+          name: "England"
+          weight: 0.84
+        - code: "SCT"
+          name: "Scotland"
+          weight: 0.10
+        - code: "WLS"
+          name: "Wales"
+          weight: 0.06
+    - country_code: "AU"
+      country_name: "Australia"
+      currency: "AUD"
+      share: 0.05
+      regions:
+        - code: "NSW"
+          name: "New South Wales"
+          weight: 0.35
+        - code: "VIC"
+          name: "Victoria"
+          weight: 0.30
+        - code: "QLD"
+          name: "Queensland"
+          weight: 0.20
+        - code: "WA"
+          name: "Western Australia"
+          weight: 0.15
+
+# FX rates vs USD (representative 2026 rates; generator uses these for currency conversion)
+fx_rates:
+  CAD: 0.74
+  GBP: 1.27
+  AUD: 0.65

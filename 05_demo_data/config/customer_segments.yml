@@ -1,0 +1,80 @@
+# Customer segment definitions per §9.3
+# Acquisition channel distribution per §9.3 marketing footprint
+
+segments:
+  - name: "one_time"
+    share: 0.62
+    avg_order_gap_days: null
+    gap_stddev: null
+    aov_multiplier: 1.0
+    lifetime_orders_min: 1
+    lifetime_orders_max: 1
+    email_engagement_rate: 0.12   # 12% of one-timers engage with email
+
+  - name: "casual_repeat"
+    share: 0.25
+    avg_order_gap_days: 95
+    gap_stddev: 40
+    aov_multiplier: 1.0
+    lifetime_orders_min: 2
+    lifetime_orders_max: 4
+    email_engagement_rate: 0.28
+
+  - name: "loyal"
+    share: 0.10
+    avg_order_gap_days: 45
+    gap_stddev: 20
+    aov_multiplier: 1.15
+    lifetime_orders_min: 5
+    lifetime_orders_max: 9
+    email_engagement_rate: 0.45
+
+  - name: "vip"
+    share: 0.03
+    avg_order_gap_days: 22
+    gap_stddev: 10
+    aov_multiplier: 1.4
+    lifetime_orders_min: 10
+    lifetime_orders_max: 35
+    email_engagement_rate: 0.62
+
+# Acquisition channel distribution for new customers
+# Per §9.3 and §9.8 realism dimension 5
+acquisition_channels:
+  - channel: "meta"
+    source_value: "facebook / cpc"
+    share: 0.38
+    utm_source: "facebook"
+    utm_medium: "cpc"
+  - channel: "organic_search"
+    source_value: "google / organic"
+    share: 0.22
+    utm_source: "google"
+    utm_medium: "organic"
+  - channel: "direct"
+    source_value: "(direct) / (none)"
+    share: 0.18
+    utm_source: null
+    utm_medium: null
+  - channel: "referral"
+    source_value: null
+    share: 0.12
+    utm_source: "referral"
+    utm_medium: "referral"
+  - channel: "google_ads"
+    source_value: "google / cpc"
+    share: 0.10
+    utm_source: "google"
+    utm_medium: "cpc"
+
+# Email subscription rates
+email_subscription:
+  shopify_accepts_marketing_rate: 0.52    # % of customers who opted in via Shopify
+  klaviyo_profile_rate: 0.78              # % of customers who have a Klaviyo profile
+  sms_subscribed_rate: 0.18              # % of customers who opted into SMS
+
+# Shopify customer state distribution
+customer_states:
+  enabled: 0.85
+  disabled: 0.10
+  invited: 0.05

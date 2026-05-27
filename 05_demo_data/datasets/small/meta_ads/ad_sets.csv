@@ -1,0 +1,15 @@
+id,campaign_id,name,status
+AS001,MC001,Lookalike - Top Customers,ACTIVE
+AS002,MC002,Interest - Fashion & Style,ACTIVE
+AS003,MC002,Lookalike - Recent Purchasers,ACTIVE
+AS004,MC003,Interest - Outdoor & Adventure,ACTIVE
+AS005,MC003,Lookalike - Fall Purchasers,ACTIVE
+AS006,MC004,Cart Abandoners - 1-7 Days,ACTIVE
+AS007,MC004,Product Viewers - 14 Days,ACTIVE
+AS008,MC005,Broad - BFCM Sale,ACTIVE
+AS009,MC005,Retargeting - BFCM,ACTIVE
+AS010,MC006,Gift Buyers - Broad,ACTIVE
+AS011,MC007,Interest - Lifestyle,ACTIVE
+AS012,MC008,Gift Givers,ACTIVE
+AS013,MC009,Interest - Travel & Vacation,ACTIVE
+AS014,MC010,Students & Young Adults,ACTIVE
