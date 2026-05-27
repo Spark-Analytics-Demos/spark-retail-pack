@@ -1,0 +1,776 @@
+version: 2
+
+models:
+  # ───────────────────────────────────────────────────────────────────────────
+  # mart_pro_sales — KPIs 6 (Refund Rate) & 8 (Revenue by Channel)
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: mart_pro_sales
+    description: >
+      Pro Sales mart per Phase 2. One row per (date × channel_sk × geography_sk).
+      date = COALESCE(order_date, refund_date) — refund amounts attributed to refund_date
+      per §5.4 (refunds in March against February orders are attributed to March).
+      KPI 6 (Refund Rate) basis: SUM(total_refund_amount) / NULLIF(SUM(gmv), 0) * 100 in Power BI.
+      KPI 8 (Revenue by Channel): SUM(net_revenue) sliced by channel_name in Power BI.
+      Advanced channel hierarchy (paid_social → online → marketplace) enabled via Pro channel mapping.
+      Excludes cancelled and test orders. Refund channel/geography inherited from originating order.
+    config:
+      materialized: table
+      schema: mart_pro
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [date, channel_sk, geography_sk]
+      - dbt_utils.expression_is_true:
+          expression: "gmv >= 0"
+          config:
+            severity: error
+            alias: mart_pro_sales_gmv_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "total_refund_amount >= 0"
+          config:
+            severity: error
+            alias: mart_pro_sales_refund_non_negative
+      - dbt_utils.recency:
+          datepart: day
+          field: date
+          interval: 2
+          config:
+            severity: warn
+            alias: mart_pro_sales_recency_2d
+    columns:
+      - name: mart_pro_sales_sk
+        description: Surrogate PK — MD5 of date + channel_sk + geography_sk.
+        tests: [not_null, unique]
+      - name: date
+        description: >
+          Unified reporting date. For order metrics = order_date; for refund-only rows
+          = refund_date. COALESCE(order_date, refund_date) from the FULL OUTER JOIN.
+        tests: [not_null]
+      - name: date_sk
+        description: FK to dim_date — YYYYMMDD integer.
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: week_starting_date
+        description: ISO week start (Monday) for this date.
+      - name: week_of_year
+        description: ISO week number (1–53).
+      - name: month_number
+        description: Calendar month (1–12).
+      - name: month_name
+        description: Full month name.
+      - name: month_short_name
+        description: Abbreviated month name.
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+      - name: quarter_name
+        description: Quarter label (e.g., "Q1").
+      - name: year
+        description: Calendar year.
+      - name: is_weekend
+        description: TRUE for Saturday or Sunday.
+      - name: is_business_day
+        description: TRUE for Mon–Fri excluding public holidays.
+      - name: is_mtd
+        description: TRUE if date falls within the current month-to-date window.
+      - name: is_qtd
+        description: TRUE if date falls within the current quarter-to-date window.
+      - name: is_ytd
+        description: TRUE if date falls within the current year-to-date window.
+      - name: channel_sk
+        description: FK to dim_channel.
+        tests:
+          - relationships:
+              to: ref('dim_channel')
+              field: channel_sk
+      - name: channel_name
+        description: Human-readable channel name.
+      - name: channel_category
+        description: Channel category from channel_mapping seed.
+      - name: channel_type
+        description: sales, acquisition, or both.
+      - name: is_paid
+        description: TRUE for paid acquisition channels.
+      - name: geography_sk
+        description: FK to dim_geography.
+        tests:
+          - relationships:
+              to: ref('dim_geography')
+              field: geography_sk
+      - name: country_code
+        description: ISO 3166-1 alpha-2 shipping country code.
+      - name: country_name
+        description: Full country name.
+      - name: country_region
+        description: World region.
+      - name: gmv
+        description: "KPI 8 basis: Gross Merchandise Value on this date/channel/geography."
+        tests: [not_null]
+      - name: net_revenue
+        description: "KPI 8: Net Revenue (GMV minus discounts and refunds) by channel."
+        tests: [not_null]
+      - name: order_count
+        description: Count of non-cancelled, non-test orders.
+        tests: [not_null]
+      - name: total_refund_amount
+        description: "KPI 6 numerator: sum of refund amounts on this refund_date/channel/geography."
+        tests: [not_null]
+      - name: refund_count
+        description: Count of distinct refund events on this date/channel/geography.
+        tests: [not_null]
+      - name: loaded_at
+        description: Timestamp when this mart was last rebuilt.
+        tests: [not_null]
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # mart_pro_returns — KPI 7 (Return Rate)
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: mart_pro_returns
+    description: >
+      Pro Returns mart per Phase 2. One row per (order_date × product_sk × channel_sk × geography_sk).
+      KPI 7 (Return Rate) basis: SUM(total_refunded_quantity) / NULLIF(SUM(total_quantity), 0) * 100 in Power BI.
+      Unit-based return rate (not revenue-based). Most actionable when sliced by product category.
+      geography_sk joined from fact_orders — not available directly in fact_order_lines.
+      Excludes cancelled and test orders.
+    config:
+      materialized: table
+      schema: mart_pro
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "total_quantity >= 0"
+          config:
+            severity: error
+            alias: mart_pro_returns_quantity_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "total_refunded_quantity >= 0"
+          config:
+            severity: error
+            alias: mart_pro_returns_refunded_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "total_refunded_quantity <= total_quantity + 1"
+          config:
+            severity: warn
+            alias: mart_pro_returns_refunded_lte_quantity
+      - dbt_utils.recency:
+          datepart: day
+          field: order_date
+          interval: 2
+          config:
+            severity: warn
+            alias: mart_pro_returns_recency_2d
+    columns:
+      - name: mart_pro_returns_sk
+        description: Surrogate PK — MD5 of order_date + product_sk + channel_sk + geography_sk.
+        tests: [not_null, unique]
+      - name: order_date
+        description: Business date of the order.
+        tests: [not_null]
+      - name: date_sk
+        description: FK to dim_date.
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: week_of_year
+        description: ISO week number (1–53).
+      - name: month_number
+        description: Calendar month (1–12).
+      - name: month_name
+        description: Full month name.
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+      - name: year
+        description: Calendar year.
+      - name: is_mtd
+        description: TRUE if order_date is within the current month-to-date window.
+      - name: is_ytd
+        description: TRUE if order_date is within the current year-to-date window.
+      - name: product_sk
+        description: FK to dim_product.
+        tests:
+          - relationships:
+              to: ref('dim_product')
+              field: product_sk
+      - name: product_display_name
+        description: "Product title and variant label (e.g., 'Blue Tee - Large')."
+      - name: product_title
+        description: Parent product title.
+      - name: category
+        description: Product category.
+      - name: subcategory
+        description: Product subcategory.
+      - name: vendor
+        description: Product vendor / brand.
+      - name: product_is_active
+        description: TRUE if the product variant is currently active.
+      - name: channel_sk
+        description: FK to dim_channel.
+        tests:
+          - relationships:
+              to: ref('dim_channel')
+              field: channel_sk
+      - name: channel_name
+        description: Human-readable channel name.
+      - name: channel_category
+        description: Channel category.
+      - name: channel_type
+        description: sales, acquisition, or both.
+      - name: is_paid
+        description: TRUE for paid acquisition channels.
+      - name: geography_sk
+        description: FK to dim_geography.
+        tests:
+          - relationships:
+              to: ref('dim_geography')
+              field: geography_sk
+      - name: country_code
+        description: ISO 3166-1 alpha-2 shipping country code.
+      - name: country_name
+        description: Full country name.
+      - name: country_region
+        description: World region.
+      - name: total_quantity
+        description: "KPI 7 denominator: sum of line item quantities sold."
+        tests: [not_null]
+      - name: total_refunded_quantity
+        description: "KPI 7 numerator: sum of refunded (returned) quantities."
+        tests: [not_null]
+      - name: total_line_revenue
+        description: Sum of net line amounts for orders in this row.
+        tests: [not_null]
+      - name: total_refunded_revenue
+        description: Sum of refunded amounts at line level.
+        tests: [not_null]
+      - name: returned_line_count
+        description: Count of distinct order lines that had at least one unit returned.
+        tests: [not_null]
+      - name: total_line_count
+        description: Total count of order lines in this row.
+        tests: [not_null]
+      - name: loaded_at
+        description: Timestamp when this mart was last rebuilt.
+        tests: [not_null]
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # mart_pro_customer_ltv — KPI 15 (Customer Lifetime Value)
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: mart_pro_customer_ltv
+    description: >
+      Pro Customer LTV mart per Phase 2. One row per (snapshot_date × acquisition_cohort_month × acquisition_source_system).
+      KPI 15 (Customer LTV — basic): avg_ltv = AVG(lifetime_revenue) as-of snapshot_date. NON-ADDITIVE across time.
+      This is LTV-to-date, not predictive LTV. Predictive LTV is a v2 Pro module.
+      acquisition_channel uses acquisition_source_system as a proxy in v1 (Pro channel enrichment in v2).
+      Cohort slicing: acquisition_cohort_month = DATE_TRUNC('month', acquisition_date).
+      Percentile distribution (p25/p50/p75) supports cohort LTV dispersion analysis.
+    config:
+      materialized: table
+      schema: mart_pro
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "avg_ltv >= 0 or avg_ltv is null"
+          config:
+            severity: error
+            alias: mart_pro_ltv_avg_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "total_customers_in_cohort >= 0"
+          config:
+            severity: error
+            alias: mart_pro_ltv_cohort_count_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "p50_ltv >= p25_ltv or p50_ltv is null or p25_ltv is null"
+          config:
+            severity: warn
+            alias: mart_pro_ltv_percentile_order
+      - dbt_utils.recency:
+          datepart: day
+          field: snapshot_date
+          interval: 1
+          config:
+            severity: warn
+            alias: mart_pro_ltv_recency_1d
+    columns:
+      - name: mart_pro_ltv_sk
+        description: Surrogate PK — MD5 of snapshot_date + acquisition_cohort_month + acquisition_source_system.
+        tests: [not_null, unique]
+      - name: snapshot_date
+        description: Date of the customer state snapshot. NON-ADDITIVE across time.
+        tests: [not_null]
+      - name: date_sk
+        description: FK to dim_date.
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: month_number
+        description: Calendar month (1–12).
+      - name: month_name
+        description: Full month name.
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+      - name: year
+        description: Calendar year.
+      - name: is_mtd
+        description: TRUE if snapshot_date is within the current month-to-date window.
+      - name: is_ytd
+        description: TRUE if snapshot_date is within the current year-to-date window.
+      - name: acquisition_cohort_month
+        description: First day of the month in which customers in this cohort were acquired.
+        tests: [not_null]
+      - name: acquisition_source_system
+        description: >
+          Source system through which the customer was acquired (e.g., 'shopify', 'klaviyo').
+          Used as a proxy for acquisition_channel in v1; Pro channel enrichment populates
+          acquisition_channel in v2.
+      - name: avg_ltv
+        description: "KPI 15: Average lifetime revenue (net_after_refunds) per customer in this cohort as-of snapshot_date. NON-ADDITIVE across time."
+      - name: p25_ltv
+        description: 25th percentile of lifetime revenue in this cohort (LTV dispersion lower bound).
+      - name: p50_ltv
+        description: Median lifetime revenue in this cohort.
+      - name: p75_ltv
+        description: 75th percentile of lifetime revenue in this cohort (LTV dispersion upper bound).
+      - name: total_cohort_lifetime_revenue
+        description: Sum of all lifetime revenue for customers in this cohort as-of snapshot_date.
+      - name: avg_lifetime_orders
+        description: Average lifetime order count per customer in this cohort.
+      - name: total_customers_in_cohort
+        description: Count of distinct customers in this cohort tracked on snapshot_date.
+        tests: [not_null]
+      - name: active_customers_30d
+        description: Customers in this cohort with an order in the trailing 30 days as-of snapshot_date.
+        tests: [not_null]
+      - name: active_customers_90d
+        description: Customers in this cohort with an order in the trailing 90 days as-of snapshot_date.
+        tests: [not_null]
+      - name: loaded_at
+        description: Timestamp when this mart was last rebuilt.
+        tests: [not_null]
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # mart_pro_customer_behavior — KPIs 16, 17, 18
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: mart_pro_customer_behavior
+    description: >
+      Pro Customer Behavior mart per Phase 2. One row per (date × channel_sk).
+      date = COALESCE(order_date, spend_date) — FULL OUTER JOIN to include spend-only dates.
+      KPI 16 (Avg Time Between Orders): avg_days_between_orders pre-computed per channel/day.
+        Aggregate to weekly/monthly grain in Power BI. Only computed for repeat orders.
+      KPI 17 (CAC by Channel): spend_amount / NULLIF(new_customers, 0) in Power BI.
+        new_customers uses last-touch attribution (channel on first order).
+      KPI 18 (ROAS by Channel): net_revenue / NULLIF(spend_amount, 0) in Power BI.
+        Warehouse-attributed ROAS, not platform-reported ROAS.
+      Spend data covers Meta Ads (paid_social_meta channel) only in v1.
+    config:
+      materialized: table
+      schema: mart_pro
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [date, channel_sk]
+      - dbt_utils.expression_is_true:
+          expression: "spend_amount >= 0"
+          config:
+            severity: error
+            alias: mart_pro_behavior_spend_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "new_customers >= 0"
+          config:
+            severity: error
+            alias: mart_pro_behavior_new_customers_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "avg_days_between_orders > 0 or avg_days_between_orders is null"
+          config:
+            severity: error
+            alias: mart_pro_behavior_gap_positive
+      - dbt_utils.recency:
+          datepart: day
+          field: date
+          interval: 2
+          config:
+            severity: warn
+            alias: mart_pro_behavior_recency_2d
+    columns:
+      - name: mart_pro_behavior_sk
+        description: Surrogate PK — MD5 of date + channel_sk.
+        tests: [not_null, unique]
+      - name: date
+        description: >
+          Unified reporting date. COALESCE(order_date, spend_date) from the FULL OUTER JOIN.
+          For order-only rows = order_date; for spend-only rows = spend_date.
+        tests: [not_null]
+      - name: date_sk
+        description: FK to dim_date.
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: week_starting_date
+        description: ISO week start (Monday).
+      - name: week_of_year
+        description: ISO week number (1–53).
+      - name: month_number
+        description: Calendar month (1–12).
+      - name: month_name
+        description: Full month name.
+      - name: month_short_name
+        description: Abbreviated month name.
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+      - name: quarter_name
+        description: Quarter label.
+      - name: year
+        description: Calendar year.
+      - name: is_weekend
+        description: TRUE for Saturday or Sunday.
+      - name: is_business_day
+        description: TRUE for Mon–Fri excluding public holidays.
+      - name: is_mtd
+        description: TRUE if date is within the current month-to-date window.
+      - name: is_qtd
+        description: TRUE if date is within the current quarter-to-date window.
+      - name: is_ytd
+        description: TRUE if date is within the current year-to-date window.
+      - name: channel_sk
+        description: FK to dim_channel.
+        tests:
+          - relationships:
+              to: ref('dim_channel')
+              field: channel_sk
+      - name: channel_name
+        description: Human-readable channel name.
+      - name: channel_category
+        description: Channel category.
+      - name: channel_type
+        description: sales, acquisition, or both.
+      - name: is_paid
+        description: TRUE for paid acquisition channels.
+      - name: new_customers
+        description: "KPI 17 denominator: customers whose first order occurred on this date via this channel (last-touch attribution)."
+        tests: [not_null]
+      - name: spend_amount
+        description: "KPI 17 numerator / KPI 18 denominator: total ad spend on this date for this channel. 0 for organic channels."
+        tests: [not_null]
+      - name: impressions
+        description: Total ad impressions on this date for this channel. 0 for organic channels.
+        tests: [not_null]
+      - name: clicks
+        description: Total ad clicks on this date for this channel. 0 for organic channels.
+        tests: [not_null]
+      - name: net_revenue
+        description: "KPI 18 numerator: net revenue (after refunds) attributed to this channel on this date."
+        tests: [not_null]
+      - name: gmv
+        description: Gross Merchandise Value on this date for this channel.
+        tests: [not_null]
+      - name: order_count
+        description: Count of non-cancelled, non-test orders on this date via this channel.
+        tests: [not_null]
+      - name: avg_days_between_orders
+        description: >
+          KPI 16: Average calendar days between consecutive orders, for repeat orders
+          placed on this date via this channel. NULL on dates with no repeat orders.
+          Aggregate to weekly/monthly grain in Power BI to reduce noise.
+      - name: repeat_orders_with_gap
+        description: Count of repeat orders contributing to avg_days_between_orders. 0 on days with only first orders.
+      - name: loaded_at
+        description: Timestamp when this mart was last rebuilt.
+        tests: [not_null]
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # mart_pro_email_engagement — KPI 19 (Email Engagement Rate)
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: mart_pro_email_engagement
+    description: >
+      Pro Email Engagement mart per Phase 2. One row per (event_date × email_campaign_sk).
+      KPI 19 (Email Engagement Rate): (total_opened + total_clicked) / NULLIF(total_delivered, 0) * 100 in Power BI.
+      Stored components also support open_rate (total_opened / delivered) and click_rate variants.
+      Slicers: Email Campaign, Customer Segment, Geography (segment/geo require customer join in Power BI).
+      Apple Mail Privacy Protection inflates total_opened counts — documented but not adjusted.
+      Source: fact_email_engagement from Klaviyo connector.
+    config:
+      materialized: table
+      schema: mart_pro
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [event_date, email_campaign_sk]
+      - dbt_utils.expression_is_true:
+          expression: "total_delivered >= 0"
+          config:
+            severity: error
+            alias: mart_pro_email_delivered_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "total_opened >= 0"
+          config:
+            severity: error
+            alias: mart_pro_email_opened_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "total_clicked >= 0"
+          config:
+            severity: error
+            alias: mart_pro_email_clicked_non_negative
+      - dbt_utils.recency:
+          datepart: day
+          field: event_date
+          interval: 1
+          config:
+            severity: warn
+            alias: mart_pro_email_recency_1d
+    columns:
+      - name: mart_pro_email_sk
+        description: Surrogate PK — MD5 of event_date + email_campaign_sk.
+        tests: [not_null, unique]
+      - name: event_date
+        description: Calendar date of the engagement events.
+        tests: [not_null]
+      - name: date_sk
+        description: FK to dim_date.
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: week_of_year
+        description: ISO week number (1–53).
+      - name: month_number
+        description: Calendar month (1–12).
+      - name: month_name
+        description: Full month name.
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+      - name: year
+        description: Calendar year.
+      - name: is_mtd
+        description: TRUE if event_date is within the current month-to-date window.
+      - name: is_qtd
+        description: TRUE if event_date is within the current quarter-to-date window.
+      - name: is_ytd
+        description: TRUE if event_date is within the current year-to-date window.
+      - name: email_campaign_sk
+        description: FK to dim_email_campaign.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_email_campaign')
+              field: email_campaign_sk
+      - name: email_campaign_id
+        description: "Prefixed campaign identifier: 'cmp_' for one-time campaigns, 'flw_' for flows."
+      - name: campaign_name
+        description: Human-readable campaign or flow name.
+      - name: campaign_type
+        description: Campaign type (e.g., promotional, automated, transactional).
+      - name: subject_line
+        description: Email subject line (NULL for flows).
+      - name: send_date
+        description: Date the campaign was sent or the flow was activated.
+      - name: audience_size
+        description: Target audience size for this campaign (NULL for flows).
+      - name: total_delivered
+        description: "KPI 19 denominator: count of delivered events on this date for this campaign."
+        tests: [not_null]
+      - name: total_opened
+        description: >
+          KPI 19 partial numerator: count of opened events. Note: Apple Mail Privacy Protection
+          auto-opens emails on behalf of users — inflates this count.
+        tests: [not_null]
+      - name: total_clicked
+        description: "KPI 19 partial numerator: count of clicked (link click) events."
+        tests: [not_null]
+      - name: total_bounced
+        description: Count of bounced events (hard + soft + block combined).
+        tests: [not_null]
+      - name: total_unsubscribed
+        description: Count of unsubscribe events on this date.
+        tests: [not_null]
+      - name: total_spam_reported
+        description: Count of spam complaint events on this date.
+        tests: [not_null]
+      - name: unique_recipients
+        description: Count of distinct customers who triggered any event for this campaign on this date.
+        tests: [not_null]
+      - name: loaded_at
+        description: Timestamp when this mart was last rebuilt.
+        tests: [not_null]
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # mart_pro_inventory — KPIs 21, 24, 25
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: mart_pro_inventory
+    description: >
+      Pro Inventory mart per Phase 2. One row per (snapshot_date × product_sk × location_sk).
+      Extends OSS mart_inventory with actual Pro flag values (is_slow_mover / is_low_stock / is_overstock)
+      and trailing sales metrics for inventory efficiency KPIs.
+      KPI 21 (Inventory Turnover): cogs_last_30d / NULLIF(inventory_value, 0) * 12 in Power BI (monthly-annualized).
+      KPI 24 (Sell-Through Rate, v1 proxy): sell_through_rate_30d or sell_through_rate_60d.
+        v1 proxy: units_sold / (units_sold + quantity_available) * 100. True cohort logic in v2.
+      KPI 25 (Slow-Moving SKU Count): COUNT(is_slow_mover=TRUE) at a snapshot_date in Power BI.
+      Trailing metrics (units_sold_*, cogs_*) are SKU-level only (location-agnostic in v1,
+        because fact_order_lines lacks location_sk until fulfillment API is added in Phase 2).
+      Pro flags: is_low_stock (days_of_supply in (0,14)), is_overstock (days_of_supply > 90),
+        is_slow_mover (no net sales in trailing 60 days). All are FALSE (not NULL) as in OSS.
+    config:
+      materialized: table
+      schema: mart_pro
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "quantity_available >= -100"
+          config:
+            severity: warn
+            alias: mart_pro_inventory_quantity_reasonable
+      - dbt_utils.expression_is_true:
+          expression: "days_of_supply >= 0 or days_of_supply is null"
+          config:
+            severity: error
+            alias: mart_pro_inventory_dos_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "units_sold_30d >= 0"
+          config:
+            severity: error
+            alias: mart_pro_inventory_units_30d_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "sell_through_rate_30d >= 0 and sell_through_rate_30d <= 100 or sell_through_rate_30d is null"
+          config:
+            severity: error
+            alias: mart_pro_inventory_str_range
+      - dbt_utils.recency:
+          datepart: day
+          field: snapshot_date
+          interval: 1
+          config:
+            severity: warn
+            alias: mart_pro_inventory_recency_1d
+    columns:
+      - name: mart_pro_inventory_sk
+        description: Surrogate PK — inherits inventory_snapshot_sk from fact_inventory_snapshot.
+        tests: [not_null, unique]
+      - name: snapshot_date
+        description: Date of the inventory snapshot.
+        tests: [not_null]
+      - name: date_sk
+        description: FK to dim_date.
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: month_number
+        description: Calendar month (1–12).
+      - name: month_name
+        description: Full month name.
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+      - name: year
+        description: Calendar year.
+      - name: is_mtd
+        description: TRUE if snapshot_date is within the current month-to-date window.
+      - name: is_ytd
+        description: TRUE if snapshot_date is within the current year-to-date window.
+      - name: product_sk
+        description: FK to dim_product.
+        tests:
+          - relationships:
+              to: ref('dim_product')
+              field: product_sk
+      - name: sku
+        description: Degenerate SKU identifier.
+      - name: product_display_name
+        description: "Product title and variant label (e.g., 'Blue Tee - Large')."
+      - name: product_title
+        description: Parent product title.
+      - name: category
+        description: Product category.
+      - name: subcategory
+        description: Product subcategory.
+      - name: vendor
+        description: Product vendor / brand.
+      - name: product_is_active
+        description: TRUE if the product variant is currently active.
+      - name: location_sk
+        description: FK to dim_warehouse_location. NULL when location_id is not in dim.
+        tests:
+          - relationships:
+              to: ref('dim_warehouse_location')
+              field: location_sk
+      - name: location_name
+        description: Shopify location name.
+      - name: location_type
+        description: warehouse, retail, or third_party.
+      - name: location_country_code
+        description: ISO country code of the location.
+      - name: quantity_available
+        description: Quantity available to sell.
+      - name: quantity_on_hand
+        description: Physical stock quantity (approximated as quantity_available in v1).
+      - name: quantity_incoming
+        description: Inbound quantity from purchase orders.
+      - name: unit_cost
+        description: Cost per unit in reporting currency. NULL when cost not tracked.
+      - name: inventory_value
+        description: "KPI 21 denominator: quantity_on_hand × unit_cost. NULL when unit_cost not tracked."
+      - name: days_of_supply
+        description: >
+          OSS KPI 22: quantity_available / avg_daily_units_28d. NULL when no sales
+          in trailing 28 days. Also drives is_low_stock and is_overstock flags.
+      - name: is_out_of_stock
+        description: TRUE when quantity_available <= 0.
+        tests: [not_null]
+      - name: is_low_stock
+        description: >
+          Pro flag (actual value, not NULL): TRUE when days_of_supply is known and falls in (0, 14).
+          Excludes OOS items (days_of_supply = 0) and slow movers (days_of_supply = NULL).
+        tests: [not_null]
+      - name: is_overstock
+        description: >
+          Pro flag (actual value, not NULL): TRUE when days_of_supply is known and exceeds 90.
+          NULL days_of_supply (slow movers) are FALSE — they're not overstock, they're stagnant.
+        tests: [not_null]
+      - name: is_slow_mover
+        description: >
+          Pro flag (actual value, not NULL) — KPI 25 basis: TRUE when net units sold in
+          trailing 60 days = 0. Configurable via vars.slow_mover_days (default 60).
+        tests: [not_null]
+      - name: units_sold_30d
+        description: Net units sold (quantity − refunded_quantity) in trailing 30 days for this SKU. SKU-level only in v1.
+        tests: [not_null]
+      - name: units_sold_60d
+        description: Net units sold in trailing 60 days for this SKU. Used in is_slow_mover determination.
+        tests: [not_null]
+      - name: units_sold_90d
+        description: Net units sold in trailing 90 days for this SKU.
+        tests: [not_null]
+      - name: cogs_last_30d
+        description: "KPI 21 numerator (30d): COGS (unit_cost × net_units_sold) in trailing 30 days for this SKU. NULL when unit_cost not tracked."
+      - name: cogs_last_90d
+        description: "KPI 21 numerator (90d): COGS in trailing 90 days for this SKU. NULL when unit_cost not tracked."
+      - name: sell_through_rate_30d
+        description: >
+          KPI 24 (v1 proxy): units_sold_30d / (units_sold_30d + quantity_available) * 100.
+          NULL when denominator = 0 (no inventory and no sales). Not true cohort sell-through —
+          cohort logic (receipt date as base) ships in v2.
+      - name: sell_through_rate_60d
+        description: >
+          KPI 24 (v1 proxy, 60-day window): units_sold_60d / (units_sold_60d + quantity_available) * 100.
+          NULL when denominator = 0.
+      - name: loaded_at
+        description: Timestamp when this mart was last rebuilt.
+        tests: [not_null]
