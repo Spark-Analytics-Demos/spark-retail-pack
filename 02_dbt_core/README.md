@@ -4,6 +4,8 @@ The open-source dbt transformation layer for the Spark Retail Pack. Transforms r
 
 Licensed under MIT. See the root [README](../README.md) for the full project overview.
 
+**Current release:** v1.0.0
+
 ---
 
 ## Status
