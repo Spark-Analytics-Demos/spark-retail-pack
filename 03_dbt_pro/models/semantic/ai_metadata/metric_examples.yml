@@ -1,0 +1,551 @@
+# Metric example questions, dimensions, and caveats for AI query guidance.
+# Per §7.13: consumed by the Spark AI assistant to:
+#   1. Understand the variety of questions a metric can answer
+#   2. Choose default dimensions for ambiguous queries
+#   3. Flag known pitfalls (the 'caveats' field — used verbatim in AI responses)
+#
+# Structure per metric:
+#   metric           — canonical MetricFlow metric name
+#   kpi_id           — dot-separated module.id
+#   example_questions — natural-language questions this metric can answer
+#   example_dimensions — suggested default slicers for this metric
+#   example_grains   — supported and recommended time grains
+#   caveats          — important warnings the AI should surface when answering
+#   not_applicable   — questions this metric CANNOT answer (prevents hallucination)
+
+examples:
+
+  # ─── Sales Analytics (KPIs 1–9) ──────────────────────────────────────────────
+
+  - metric: gmv
+    kpi_id: sales.gmv
+    example_questions:
+      - "What was our GMV last month?"
+      - "Total order value for Q3"
+      - "How much gross sales did we do this year?"
+      - "GMV by channel this quarter"
+      - "Show me topline sales"
+    example_dimensions:
+      - channel
+      - geography
+      - payment_method
+      - customer_segment
+    example_grains:
+      - day
+      - week
+      - month
+      - quarter
+      - year
+    caveats: |
+      GMV is pre-refund — it includes the full value of orders before any
+      refunds are subtracted. For the amount the business actually keeps,
+      use net_revenue instead. GMV excludes tax and shipping.
+    not_applicable:
+      - "Profit (GMV is revenue, not profit)"
+      - "Revenue after refunds (use net_revenue)"
+
+  - metric: net_revenue
+    kpi_id: sales.net_revenue
+    example_questions:
+      - "What was our revenue last month?"
+      - "How much money did we make in Q1?"
+      - "Show me revenue by channel for January"
+      - "Is revenue up or down year over year?"
+      - "What's our net sales this week?"
+    example_dimensions:
+      - channel
+      - geography
+      - customer_segment
+      - payment_method
+    example_grains:
+      - day
+      - week
+      - month
+      - quarter
+      - year
+    caveats: |
+      Net revenue = GMV − discounts − refunds. Tax and shipping are excluded.
+      This is the figure reported to investors, not gross sales. If the user asks
+      for "total revenue," default to net_revenue unless they specify "gross."
+    not_applicable:
+      - "Profit (this is revenue, not profit — COGS and expenses are not in scope)"
+
+  - metric: order_count
+    kpi_id: sales.order_count
+    example_questions:
+      - "How many orders did we get this week?"
+      - "Order count by channel for last month"
+      - "Total orders in Q2"
+      - "How many orders were placed today?"
+    example_dimensions:
+      - channel
+      - geography
+      - payment_method
+    example_grains:
+      - day
+      - week
+      - month
+    caveats: |
+      Order count includes refunded orders (returning an item doesn't un-place
+      the order). Cancelled orders are excluded. This counts orders, not items —
+      one order can contain many products.
+
+  - metric: average_order_value
+    kpi_id: sales.average_order_value
+    example_questions:
+      - "What's our average order value?"
+      - "AOV by channel last quarter"
+      - "How much do customers spend per order on average?"
+      - "Has our basket size changed?"
+    example_dimensions:
+      - channel
+      - geography
+      - customer_segment
+    example_grains:
+      - week
+      - month
+      - quarter
+    caveats: |
+      AOV is computed as total net revenue ÷ order count — NOT as the average
+      of individual order amounts (those produce different numbers). If the user
+      asks for "average basket size by channel," use AOV. If they ask for the
+      median order value, that requires a different query not available in the
+      semantic layer.
+
+  - metric: revenue_growth_pct
+    kpi_id: sales.revenue_growth_pct
+    example_questions:
+      - "How fast is revenue growing?"
+      - "Revenue growth month over month"
+      - "Are we growing faster than last quarter?"
+      - "YoY revenue change"
+    example_dimensions:
+      - channel
+      - geography
+    example_grains:
+      - week
+      - month
+      - quarter
+      - year
+    caveats: |
+      This metric is NOT meaningful at daily grain — daily revenue fluctuates
+      too much to show useful trends. Always use at weekly or monthly minimum.
+      Returns NULL when prior-period revenue is zero (cannot divide by zero).
+      Default comparison is period-over-period (this month vs. last month).
+
+  - metric: refund_rate
+    kpi_id: sales.refund_rate
+    example_questions:
+      - "What's our refund rate this month?"
+      - "Refund rate by product category"
+      - "Are refunds increasing?"
+      - "How much of our revenue is being refunded?"
+    example_dimensions:
+      - channel
+      - product_category
+      - refund_category
+      - geography
+    example_grains:
+      - week
+      - month
+      - quarter
+    caveats: |
+      Refunds are attributed to their refund_date, NOT the original order date.
+      A March refund on a February order shows in March's refund rate. This is
+      intentional but may surprise users comparing refund rate to GMV in the
+      same period. Avoid daily grain — daily refund volumes are too noisy.
+
+  - metric: return_rate
+    kpi_id: sales.return_rate
+    example_questions:
+      - "What's our return rate?"
+      - "Which product categories have the highest returns?"
+      - "Return rate this quarter"
+      - "How many units are customers sending back?"
+    example_dimensions:
+      - product_category
+      - channel
+      - geography
+    example_grains:
+      - week
+      - month
+      - quarter
+    caveats: |
+      Return rate is unit-based (units returned ÷ units sold), not
+      revenue-based. For revenue impact, use refund_rate instead. Slicing
+      by product category is the most actionable view — high return rates
+      often signal quality or sizing issues with specific SKUs.
+
+  - metric: revenue_by_channel
+    kpi_id: sales.revenue_by_channel
+    example_questions:
+      - "Revenue by channel this month"
+      - "Which channel makes the most money?"
+      - "Channel breakdown of sales"
+      - "How much comes from direct vs marketplace?"
+    example_dimensions:
+      - channel
+      - geography
+      - customer_segment
+    example_grains:
+      - week
+      - month
+      - quarter
+    caveats: |
+      In v1 the channel data is Meta Ads for paid_social_meta. Organic and
+      direct channels do not have spend data. This metric requires the
+      channel dimension to be useful.
+
+  - metric: tax_collected
+    kpi_id: sales.tax_collected
+    example_questions:
+      - "How much tax did we collect this month?"
+      - "Tax collected by country"
+      - "Tax liability for Q3"
+      - "How much VAT did we collect in the UK?"
+    example_dimensions:
+      - geography
+      - channel
+    example_grains:
+      - month
+      - quarter
+      - year
+    caveats: |
+      This is gross tax collected — refunded tax is NOT subtracted. For net
+      tax filing, the user needs: tax_collected − SUM(refund_tax_amount).
+      Always slice by geography (country_code or region) for filing purposes.
+
+  # ─── Customer 360 (KPIs 10–19) ────────────────────────────────────────────────
+
+  - metric: active_customers_30d
+    kpi_id: customer.active_customers_30d
+    example_questions:
+      - "How many active customers do we have?"
+      - "Active customers this month"
+      - "Active customers by segment"
+      - "How many customers bought in the last 30 days?"
+    example_dimensions:
+      - customer_segment
+      - geography
+      - acquisition_channel
+    example_grains:
+      - day
+      - week
+      - month
+    caveats: |
+      This is a point-in-time measure — NEVER sum across days. If the user asks
+      for "total active customers over the year," clarify that they likely want
+      the count at the end of the year (or the average), not a sum.
+      The same customer is counted on every day they are active, so summing
+      produces a meaningless number that is far too large.
+
+  - metric: active_customers_90d
+    kpi_id: customer.active_customers_90d
+    example_questions:
+      - "Active customers in trailing 90 days"
+      - "90-day active customer count"
+      - "Quarterly active buyers"
+    example_dimensions:
+      - customer_segment
+      - geography
+    example_grains:
+      - day
+      - week
+      - month
+    caveats: |
+      Same non-additive caveat as active_customers_30d. The 90-day window is
+      useful for categories with longer repurchase cycles (furniture, bedding,
+      durable goods). active_customers_90d >= active_customers_30d always.
+
+  - metric: new_customers
+    kpi_id: customer.new_customers
+    example_questions:
+      - "How many new customers did we acquire this month?"
+      - "New customer count by channel"
+      - "Customer acquisition this quarter"
+      - "First-time buyers in January"
+    example_dimensions:
+      - acquisition_channel
+      - geography
+      - customer_segment
+    example_grains:
+      - day
+      - week
+      - month
+      - quarter
+    caveats: |
+      A "new customer" is one whose FIRST COMPLETED ORDER falls in the period.
+      Customers who registered but never purchased are not counted. This metric
+      IS additive across time — you can sum monthly new customers to get an
+      annual total (unlike active customers).
+
+  - metric: repeat_customer_count
+    kpi_id: customer.repeat_customer_count
+    example_questions:
+      - "How many repeat customers this month?"
+      - "Returning customer count by channel"
+      - "How many customers came back to buy again?"
+    example_dimensions:
+      - channel
+      - geography
+      - customer_segment
+    example_grains:
+      - week
+      - month
+      - quarter
+    caveats: |
+      A repeat customer in a period is one who placed an order AND had at
+      least one prior order from a PREVIOUS period. A customer placing their
+      2nd and 3rd order in the same month counts once as a repeat customer.
+
+  - metric: repeat_purchase_rate
+    kpi_id: customer.repeat_purchase_rate
+    example_questions:
+      - "What's our repeat purchase rate?"
+      - "How loyal are our customers?"
+      - "% of customers who repurchase"
+      - "Repeat rate by acquisition channel"
+    example_dimensions:
+      - customer_segment
+      - acquisition_channel
+      - geography
+    example_grains:
+      - week
+      - month
+      - quarter
+    caveats: |
+      The denominator is "customers who purchased in this period" (new + repeat).
+      An alternative definition divides by total lifetime customers — that
+      produces a much lower number and is NOT this metric. If the user asks
+      "how many of all our customers are repeat buyers," they may mean a
+      different calculation.
+
+  - metric: lifetime_value
+    kpi_id: customer.lifetime_value
+    example_questions:
+      - "What's the average lifetime value of our customers?"
+      - "LTV by acquisition cohort"
+      - "How much do customers spend over their lifetime?"
+      - "LTV by acquisition channel"
+    example_dimensions:
+      - acquisition_cohort
+      - acquisition_channel
+      - customer_segment
+      - geography
+    example_grains:
+      - month
+    caveats: |
+      This is LTV-TO-DATE (actual historical spend), NOT a predictive model.
+      It answers "how much has the average customer spent so far?" — not
+      "how much will they spend in the future?" For cohort analysis, slice
+      by acquisition_cohort_month to compare cohorts of the same age.
+      This is a non-additive (point-in-time) snapshot measure.
+
+  - metric: avg_time_between_orders
+    kpi_id: customer.avg_time_between_orders
+    example_questions:
+      - "How often do customers buy from us?"
+      - "Average days between orders"
+      - "Purchase frequency by segment"
+      - "How long between first and second order?"
+    example_dimensions:
+      - customer_segment
+      - acquisition_channel
+    example_grains:
+      - month
+      - quarter
+    caveats: |
+      Only meaningful for customers with 2+ orders — first-time buyers have
+      no inter-order gap to measure. Daily grain is too noisy; use monthly
+      or quarterly minimum. A declining value means customers are buying
+      more frequently, which is positive.
+
+  - metric: cac_by_channel
+    kpi_id: customer.cac_by_channel
+    example_questions:
+      - "What's our CAC on Facebook?"
+      - "Customer acquisition cost by channel"
+      - "How much do we spend to get a customer?"
+      - "CAC comparison across channels"
+      - "Cost per new customer from paid social"
+    example_dimensions:
+      - channel
+      - geography
+    example_grains:
+      - week
+      - month
+      - quarter
+    caveats: |
+      CAC for organic channels (direct, SEO, word of mouth) will be zero or
+      NULL because there is no ad spend attributed to them. In v1, only
+      paid_social_meta has spend data — other paid channels will show NULL CAC
+      until their connectors are configured. Uses last-touch attribution.
+      This is the WAREHOUSE-attributed CAC, not the platform-reported figure.
+
+  - metric: roas_by_channel
+    kpi_id: customer.roas_by_channel
+    example_questions:
+      - "What's our ROAS on Facebook?"
+      - "Return on ad spend by channel"
+      - "How efficient is our advertising?"
+      - "Revenue per dollar of ad spend"
+    example_dimensions:
+      - channel
+      - geography
+    example_grains:
+      - week
+      - month
+      - quarter
+    caveats: |
+      This is WAREHOUSE-attributed ROAS, which is typically 2–4× LOWER than
+      what Meta or Google reports in their platforms. The platforms use wider
+      attribution windows (7-day click, 1-day view) that count many more
+      conversions. Always clarify which ROAS the user is asking about.
+      In v1, only paid_social_meta has spend data.
+
+  - metric: email_engagement_rate
+    kpi_id: customer.email_engagement_rate
+    example_questions:
+      - "What's our email engagement rate?"
+      - "How engaged are our email subscribers?"
+      - "Email performance by campaign"
+      - "Open and click rate for last month's newsletter"
+    example_dimensions:
+      - email_campaign
+      - customer_segment
+      - geography
+    example_grains:
+      - day
+      - week
+      - month
+    caveats: |
+      Apple Mail Privacy Protection (introduced 2021) auto-opens emails on
+      Apple devices, inflating the opened_count by approximately 30–50%.
+      This inflation is documented but NOT adjusted in the metric. If the
+      user notices unusually high open rates (> 60%), this is likely the cause.
+      Engagement = opens + clicks; "click rate" alone is more reliable as it
+      is not affected by Apple MPP.
+
+  # ─── Inventory Health (KPIs 20–25) ────────────────────────────────────────────
+
+  - metric: total_inventory_value
+    kpi_id: inventory.total_inventory_value
+    example_questions:
+      - "What's the total value of our inventory?"
+      - "Inventory value by category"
+      - "How much working capital is tied up in stock?"
+      - "Inventory value at end of last month"
+    example_dimensions:
+      - product_category
+      - warehouse_location
+    example_grains:
+      - day
+      - week
+      - month
+    caveats: |
+      This is inventory AT COST (quantity × unit_cost), not at retail value.
+      NULL for SKUs where unit_cost is not tracked — this surfaces as a data
+      quality issue. Non-additive across time — sum across days is meaningless.
+      Always read this at a specific snapshot_date (end of period).
+
+  - metric: inventory_turnover
+    kpi_id: inventory.inventory_turnover
+    example_questions:
+      - "How many times did we turn our inventory last quarter?"
+      - "Inventory turnover by category"
+      - "Which categories have the best turnover?"
+      - "Are we moving stock efficiently?"
+    example_dimensions:
+      - product_category
+      - warehouse_location
+    example_grains:
+      - month
+      - quarter
+      - year
+    caveats: |
+      Inventory turnover is annualized (× 12 for monthly data). Industry
+      benchmark for D2C retail is 4–8 turns per year. NULL when unit_cost is
+      not tracked for any items in the window. Daily grain is too volatile and
+      is excluded. Values above 12 or below 1 warrant investigation for
+      data quality issues.
+
+  - metric: days_of_supply
+    kpi_id: inventory.days_of_supply
+    example_questions:
+      - "How many days of stock do we have?"
+      - "Days of supply by SKU"
+      - "Which SKUs are at risk of stocking out?"
+      - "Show me SKUs with less than 14 days of supply"
+    example_dimensions:
+      - product_sku
+      - product_category
+      - warehouse_location
+    example_grains:
+      - day
+      - week
+    caveats: |
+      NULL for SKUs with no sales in the trailing 28 days — those are slow
+      movers, not stockout risks. Alert thresholds: < 14 days = reorder review
+      needed; > 90 days = overstock risk. Most actionable at SKU level.
+      The underlying calculation uses a 28-day trailing sales rate.
+
+  - metric: stockout_rate
+    kpi_id: inventory.stockout_rate
+    example_questions:
+      - "What's our stockout rate?"
+      - "How many SKUs are out of stock?"
+      - "Stockout rate by category"
+      - "Which locations have the most stockouts?"
+    example_dimensions:
+      - product_category
+      - warehouse_location
+    example_grains:
+      - day
+      - week
+      - month
+    caveats: |
+      This is the END-OF-DAY stockout rate (% of SKUs at zero stock at
+      snapshot time). The period variant (% of SKUs that experienced any
+      stockout day in the period) is not encoded in v1. Non-additive —
+      do not sum daily stockout rates to get a monthly figure.
+
+  - metric: sell_through_rate
+    kpi_id: inventory.sell_through_rate
+    example_questions:
+      - "What's the sell-through rate for our summer collection?"
+      - "How much of the inventory is selling?"
+      - "Sell-through by category this quarter"
+      - "Which SKUs have the lowest sell-through?"
+    example_dimensions:
+      - product_category
+      - product_sku
+    example_grains:
+      - month
+      - quarter
+    caveats: |
+      The v1 sell-through rate is a proxy: units_sold_60d / (units_sold_60d +
+      quantity_available) × 100. It is NOT a true cohort-based rate (which
+      would track a specific receipt batch). The true cohort method requires
+      receipt-level data (fact_inventory_movements) not available in v1.
+      Avoid daily grain — the denominator changes daily and produces noise.
+
+  - metric: slow_moving_sku_count
+    kpi_id: inventory.slow_moving_sku_count
+    example_questions:
+      - "How many slow-moving SKUs do we have?"
+      - "Dead stock count by category"
+      - "Which SKUs haven't sold in 60 days?"
+      - "How much working capital is tied up in dead stock?"
+    example_dimensions:
+      - product_category
+      - warehouse_location
+    example_grains:
+      - day
+      - week
+      - month
+    caveats: |
+      The threshold is 60 days of no net sales by default (configurable via
+      vars.slow_mover_days). Non-additive — do not sum across days. For the
+      financial impact, multiply by inventory_value per slow-moving SKU.
+      A high slow-mover count is a working capital efficiency issue; the
+      merchandising team should review for markdown or discontinuation.

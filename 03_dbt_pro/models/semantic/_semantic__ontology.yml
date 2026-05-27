@@ -1,0 +1,472 @@
+version: 2
+
+# Entity ontology — machine-readable representation of business objects and
+# their relationships. Per §7.12 design patterns.
+#
+# This is SEPARATE from MetricFlow's 'entities' (which define SQL joins between
+# semantic models). The ontology answers a different question:
+#   "What does this concept mean in this business, and what is it connected to?"
+#
+# Consumed by:
+#   - AI assistant query construction (relationship traversal for natural-language queries)
+#   - Schema documentation (new analysts understand the business without reading SQL)
+#   - Future knowledge-graph capabilities (v2 inference module)
+#
+# Intentionally simpler than OWL/RDF — uses YAML for human readability.
+# An RDF converter macro is available in Pro extensions for clients who need it.
+#
+# Per §7.12: ontology entities, predicates, and domain groupings.
+
+ontology:
+
+  # ─── Business entities ────────────────────────────────────────────────────────
+
+  entities:
+
+    - name: Customer
+      description: |
+        A person or business that has interacted with the company through any
+        source system. Identity-resolved across Shopify, Stripe, and Klaviyo
+        (same email = same customer). Stored in dim_customer (SCD2).
+      identifier: customer_id
+      source_systems: [shopify, klaviyo, stripe]
+      type: party
+      canonical_model: dim_customer
+      attributes:
+        - name: email
+          pii: true
+        - name: country_code
+        - name: customer_segment
+        - name: acquisition_channel
+        - name: acquisition_date
+        - name: first_order_date
+        - name: is_b2b_customer
+        - name: lifetime_value
+      relationships:
+        - predicate: places
+          target: Order
+          cardinality: one_to_many
+          description: A customer places zero or more orders.
+        - predicate: receives
+          target: EmailEngagement
+          cardinality: one_to_many
+          description: A customer receives email events (delivered, opened, clicked).
+        - predicate: belongs_to
+          target: CustomerSegment
+          cardinality: many_to_one
+          description: A customer is classified into one segment at any point in time.
+        - predicate: acquired_via
+          target: Channel
+          cardinality: many_to_one
+          description: A customer's first purchase is attributed to an acquisition channel.
+        - predicate: located_in
+          target: Geography
+          cardinality: many_to_one
+          description: A customer's shipping address resolves to a geography.
+
+    - name: Order
+      description: |
+        A completed or pending purchase transaction. One row per Shopify order.
+        Cancelled orders are excluded from all analytical KPIs. Source of truth
+        is Shopify. Stored in fact_orders.
+      identifier: order_id
+      source_systems: [shopify]
+      type: transaction
+      canonical_model: fact_orders
+      attributes:
+        - name: order_date
+        - name: gross_amount
+        - name: net_revenue_amount
+        - name: order_status
+        - name: is_first_order
+        - name: is_repeat_order
+        - name: is_subscription_order
+      relationships:
+        - predicate: placed_by
+          target: Customer
+          cardinality: many_to_one
+          description: An order is placed by one customer.
+        - predicate: contains
+          target: OrderLine
+          cardinality: one_to_many
+          description: An order contains one or more line items.
+        - predicate: paid_with
+          target: PaymentMethod
+          cardinality: many_to_one
+          description: An order is paid using one payment method.
+        - predicate: attributed_to
+          target: Channel
+          cardinality: many_to_one
+          description: An order is attributed to a sales/acquisition channel.
+        - predicate: shipped_to
+          target: Geography
+          cardinality: many_to_one
+          description: An order is shipped to a geography.
+        - predicate: refunded_by
+          target: Refund
+          cardinality: one_to_many
+          description: An order may be partially or fully refunded.
+
+    - name: OrderLine
+      description: |
+        One product line within an order. One row per (order × SKU). Source of
+        truth for product-level revenue and return rate analytics. Stored in
+        fact_order_lines.
+      identifier: line_item_id
+      source_systems: [shopify]
+      type: transaction_line
+      canonical_model: fact_order_lines
+      attributes:
+        - name: quantity
+        - name: refunded_quantity
+        - name: line_net_amount
+        - name: unit_cost
+        - name: is_returned
+        - name: was_promotional
+      relationships:
+        - predicate: contained_in
+          target: Order
+          cardinality: many_to_one
+          description: A line item belongs to one order.
+        - predicate: references
+          target: Product
+          cardinality: many_to_one
+          description: A line item references one SKU/product.
+
+    - name: Product
+      description: |
+        A stock keeping unit (SKU variant). One row per variant. Identity is
+        the SKU from Shopify. Stored in dim_product (SCD2). Products group
+        into categories and subcategories for slicing.
+      identifier: product_sk
+      natural_identifier: sku
+      source_systems: [shopify]
+      type: physical_object
+      canonical_model: dim_product
+      attributes:
+        - name: sku
+        - name: product_title
+        - name: category
+        - name: subcategory
+        - name: vendor
+        - name: unit_cost
+        - name: is_active
+      relationships:
+        - predicate: ordered_in
+          target: OrderLine
+          cardinality: one_to_many
+          description: A product appears in zero or more order lines.
+        - predicate: stocked_at
+          target: WarehouseLocation
+          cardinality: many_to_many
+          description: A product is stocked at one or more warehouse locations.
+        - predicate: tracked_in
+          target: InventorySnapshot
+          cardinality: one_to_many
+          description: A product's stock position is snapshotted daily per location.
+
+    - name: Refund
+      description: |
+        A refund event against a prior order. One row per refund (can be
+        partial). Attributed to refund_date, NOT order_date. Stored in
+        fact_refunds.
+      identifier: refund_id
+      source_systems: [shopify]
+      type: transaction
+      canonical_model: fact_refunds
+      attributes:
+        - name: refund_date
+        - name: refund_amount
+        - name: refund_type
+        - name: refund_category
+        - name: is_chargeback
+      relationships:
+        - predicate: reverses
+          target: Order
+          cardinality: many_to_one
+          description: A refund is applied against one order.
+        - predicate: initiated_by
+          target: Customer
+          cardinality: many_to_one
+          description: A refund is associated with the customer who placed the original order.
+
+    - name: MarketingCampaign
+      description: |
+        A paid marketing campaign. Meta Ads (paid_social_meta) is the only
+        source in v1. Stored in dim_marketing_campaign (SCD2). Campaigns
+        roll up to channels.
+      identifier: campaign_sk
+      natural_identifier: campaign_id
+      source_systems: [meta_ads]
+      type: event_series
+      canonical_model: dim_marketing_campaign
+      attributes:
+        - name: campaign_name
+        - name: campaign_objective
+        - name: campaign_status
+      relationships:
+        - predicate: spent_via
+          target: Channel
+          cardinality: many_to_one
+          description: A campaign is run through a channel (e.g., paid_social_meta).
+        - predicate: generates_spend
+          target: MarketingSpend
+          cardinality: one_to_many
+          description: A campaign generates daily spend records.
+
+    - name: MarketingSpend
+      description: |
+        Daily advertising spend at the campaign × day grain. Meta Ads only in v1.
+        Source for CAC (KPI 17) and ROAS (KPI 18). Stored in fact_marketing_spend.
+      identifier: spend_sk
+      source_systems: [meta_ads]
+      type: measurement
+      canonical_model: fact_marketing_spend
+      attributes:
+        - name: spend_date
+        - name: spend_amount
+        - name: impressions
+        - name: clicks
+      relationships:
+        - predicate: belongs_to_campaign
+          target: MarketingCampaign
+          cardinality: many_to_one
+          description: Each spend record belongs to a campaign.
+        - predicate: attributed_to
+          target: Channel
+          cardinality: many_to_one
+          description: Each spend record is attributed to a channel.
+
+    - name: EmailEngagement
+      description: |
+        One event per Klaviyo interaction: delivered, opened, clicked, bounced,
+        unsubscribed, spam_reported. One row per event. Stored in
+        fact_email_engagement. Source for KPI 19.
+      identifier: event_id
+      source_systems: [klaviyo]
+      type: event
+      canonical_model: fact_email_engagement
+      attributes:
+        - name: event_date
+        - name: event_type
+        - name: device_type
+      relationships:
+        - predicate: received_by
+          target: Customer
+          cardinality: many_to_one
+          description: An email event is associated with one recipient customer.
+        - predicate: sent_via
+          target: EmailCampaign
+          cardinality: many_to_one
+          description: An email event is part of one email campaign or flow.
+
+    - name: EmailCampaign
+      description: |
+        A Klaviyo email campaign or automated flow. Stored in
+        dim_email_campaign. Campaigns group email events for analysis.
+      identifier: email_campaign_sk
+      source_systems: [klaviyo]
+      type: event_series
+      canonical_model: dim_email_campaign
+      attributes:
+        - name: campaign_name
+        - name: campaign_type
+        - name: send_date
+      relationships:
+        - predicate: contains_events
+          target: EmailEngagement
+          cardinality: one_to_many
+          description: A campaign contains many email engagement events.
+
+    - name: InventorySnapshot
+      description: |
+        Daily snapshot of a SKU's stock position at a specific location.
+        One row per (snapshot_date × product_sk × location_sk). Source for
+        all inventory KPIs. Stored in fact_inventory_snapshot.
+      identifier: inventory_snapshot_sk
+      source_systems: [shopify]
+      type: measurement
+      canonical_model: fact_inventory_snapshot
+      attributes:
+        - name: snapshot_date
+        - name: quantity_available
+        - name: quantity_on_hand
+        - name: quantity_incoming
+        - name: unit_cost
+        - name: inventory_value
+        - name: days_of_supply
+        - name: is_out_of_stock
+        - name: is_slow_mover
+      relationships:
+        - predicate: records_position_of
+          target: Product
+          cardinality: many_to_one
+          description: An inventory snapshot records the position of one product (SKU).
+        - predicate: recorded_at
+          target: WarehouseLocation
+          cardinality: many_to_one
+          description: An inventory snapshot is recorded at one physical location.
+
+    - name: WarehouseLocation
+      description: |
+        A physical or virtual location that holds inventory — warehouse, retail
+        store, or third-party logistics partner. Stored in dim_warehouse_location.
+      identifier: location_sk
+      source_systems: [shopify]
+      type: place
+      canonical_model: dim_warehouse_location
+      attributes:
+        - name: location_name
+        - name: location_type
+        - name: country_code
+      relationships:
+        - predicate: holds
+          target: InventorySnapshot
+          cardinality: one_to_many
+          description: A location holds inventory snapshots for many products.
+
+    - name: Channel
+      description: |
+        An acquisition or sales channel. Source of truth for CAC and ROAS
+        channel attribution. The proprietary channel hierarchy maps raw UTM
+        and Shopify source data to a canonical taxonomy. Stored in dim_channel.
+      identifier: channel_sk
+      source_systems: [shopify, meta_ads]
+      type: concept
+      canonical_model: dim_channel
+      attributes:
+        - name: channel_name
+        - name: channel_category
+        - name: channel_type
+        - name: is_paid
+      relationships:
+        - predicate: receives_orders
+          target: Order
+          cardinality: one_to_many
+          description: A channel receives orders attributed to it.
+        - predicate: receives_spend
+          target: MarketingSpend
+          cardinality: one_to_many
+          description: A paid channel receives marketing spend.
+
+    - name: Geography
+      description: |
+        Shipping geography at the country level. Source for tax filing and
+        regional revenue analysis. Stored in dim_geography.
+      identifier: geography_sk
+      source_systems: [shopify]
+      type: place
+      canonical_model: dim_geography
+      attributes:
+        - name: country_code
+        - name: country_name
+        - name: country_region
+        - name: subregion
+
+    - name: PaymentMethod
+      description: |
+        The payment method used on an order (card, BNPL, digital wallet, etc.).
+        Source for payment mix analysis. Stored in dim_payment_method.
+      identifier: payment_method_sk
+      source_systems: [shopify, stripe]
+      type: concept
+      canonical_model: dim_payment_method
+      attributes:
+        - name: payment_method_type
+        - name: payment_method_name
+        - name: card_brand
+
+    - name: CustomerSegment
+      description: |
+        A behavioral or demographic grouping of customers (e.g., VIP, at-risk,
+        lapsed). Derived and stored in dim_customer.customer_segment. Used as
+        a slicer dimension on most Customer 360 KPIs.
+      identifier: customer_segment
+      source_systems: []
+      type: concept
+      canonical_model: dim_customer
+
+    - name: Date
+      description: |
+        The standard calendar date dimension. Provides rich date attributes
+        (day name, month name, fiscal year, holiday flags) used across all
+        time-based analysis. Stored in dim_date.
+      identifier: date_sk
+      source_systems: []
+      type: time
+      canonical_model: dim_date
+      attributes:
+        - name: date_actual
+        - name: fiscal_year
+        - name: is_holiday
+        - name: is_weekend
+        - name: is_mtd
+        - name: is_ytd
+
+  # ─── Predicates (relationship types) ─────────────────────────────────────────
+
+  predicates:
+    - name: places
+      inverse: placed_by
+      description: A customer places an order.
+    - name: contains
+      inverse: contained_in
+      description: An order contains order line items.
+    - name: paid_with
+      inverse: used_in
+      description: An order is paid with a payment method.
+    - name: attributed_to
+      inverse: receives
+      description: An order or spend record is attributed to a channel.
+    - name: shipped_to
+      inverse: ships_orders
+      description: An order is shipped to a geography.
+    - name: refunded_by
+      inverse: reverses
+      description: An order is reversed by a refund.
+    - name: references
+      inverse: ordered_in
+      description: An order line references a product/SKU.
+    - name: stocked_at
+      inverse: holds
+      description: A product is stocked at a warehouse location.
+    - name: tracked_in
+      inverse: records_position_of
+      description: A product's position is tracked in inventory snapshots.
+    - name: acquired_via
+      inverse: acquires
+      description: A customer was acquired via a channel (last-touch in v1).
+    - name: receives
+      inverse: received_by
+      description: A customer receives email engagement events.
+    - name: belongs_to
+      inverse: contains_customers
+      description: A customer belongs to a segment.
+    - name: located_in
+      inverse: contains_customers
+      description: A customer's shipping address is in a geography.
+    - name: spent_via
+      inverse: receives_spend
+      description: A campaign is run through a channel.
+    - name: generates_spend
+      inverse: belongs_to_campaign
+      description: A campaign generates daily spend records.
+    - name: recorded_at
+      inverse: holds_snapshot
+      description: An inventory snapshot is recorded at a location.
+
+  # ─── Domain groupings ─────────────────────────────────────────────────────────
+
+  domains:
+    - name: sales
+      description: Order-to-cash process — from order placement through refund.
+      entities: [Order, OrderLine, Refund, PaymentMethod]
+    - name: customer
+      description: Customer identity, lifecycle, acquisition, and engagement.
+      entities: [Customer, CustomerSegment, EmailEngagement, EmailCampaign, MarketingCampaign, MarketingSpend]
+    - name: inventory
+      description: Stock position, replenishment, and product performance.
+      entities: [Product, InventorySnapshot, WarehouseLocation]
+    - name: shared
+      description: Shared reference objects used across all domains.
+      entities: [Channel, Geography, Date]

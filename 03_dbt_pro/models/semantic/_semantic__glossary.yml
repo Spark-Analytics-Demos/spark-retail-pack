@@ -1,0 +1,585 @@
+version: 2
+
+# Business glossary — plain-language definitions for every term in the KPI catalog.
+# Per §7.11: the glossary is consumer-facing (marketing managers, not engineers).
+# Consumed by: AI assistant synonym resolution, Power BI tooltip layer,
+# glossary dashboard page, dbt docs site.
+# CI check: every metric in semantic/*.yml must have a corresponding glossary term.
+#
+# Structure per §7.11:
+#   term         — the canonical display name
+#   abbreviation — common short form (optional)
+#   definition   — plain-language meaning, written for a non-technical reader
+#   domain       — sales | customer | inventory | shared
+#   owner        — business team that owns the definition
+#   related_metrics — list of metric names this term maps to
+#   synonyms     — alternate names (used by AI synonym matching)
+#   technical_definition — SQL-level definition (optional, for data team reference)
+
+glossary:
+
+  # ─── Shared / cross-cutting concepts ────────────────────────────────────────
+
+  - term: "Reporting Currency"
+    definition: |
+      The single currency in which all revenue and cost figures are presented.
+      Configured once at deployment (default: USD). All multi-currency amounts
+      are converted at the silver layer using daily exchange rates before the
+      canonical model is built. KPIs do not perform FX conversions at query time.
+    domain: shared
+    owner: finance_team
+    related_metrics: []
+    synonyms:
+      - "functional currency"
+      - "base currency"
+
+  - term: "Cancelled Order"
+    definition: |
+      An order that was placed but never fulfilled or charged. Cancelled orders
+      are excluded from all Sales KPIs (GMV, Net Revenue, Order Count, etc.)
+      because no economic event occurred. Refunded orders are NOT cancelled —
+      a refund is a reversal of a completed transaction.
+    domain: sales
+    owner: operations_team
+    related_metrics:
+      - gmv
+      - net_revenue
+      - order_count
+    synonyms:
+      - "voided order"
+
+  - term: "Test Order"
+    definition: |
+      A transaction created by store staff or developers to test checkout
+      flows. Identified via Shopify's is_test flag. Excluded from all KPIs
+      alongside cancelled orders.
+    domain: sales
+    owner: operations_team
+    related_metrics: []
+
+  - term: "Channel"
+    definition: |
+      The acquisition or sales channel through which an order was placed or
+      a customer was acquired. The pack uses a proprietary channel hierarchy:
+      online store → marketplace → social commerce → search. Each channel maps
+      to a channel_category and channel_type in dim_channel.
+    domain: shared
+    owner: marketing_team
+    related_metrics:
+      - revenue_by_channel
+      - cac_by_channel
+      - roas_by_channel
+    synonyms:
+      - "sales channel"
+      - "acquisition channel"
+      - "marketing channel"
+
+  - term: "Last-Touch Attribution"
+    definition: |
+      An attribution model that assigns 100% of credit for a conversion (new
+      customer, revenue) to the last channel the customer interacted with before
+      their first purchase. The pack uses last-touch attribution in v1 for CAC
+      and ROAS. Multi-touch attribution is a v2 feature.
+    domain: marketing
+    owner: marketing_team
+    related_metrics:
+      - cac_by_channel
+      - roas_by_channel
+    synonyms:
+      - "last-click attribution"
+      - "single-touch attribution"
+
+  - term: "Snapshot Metric"
+    definition: |
+      A metric that represents a point-in-time count or value — not a flow
+      over a period. Snapshot metrics are NON-ADDITIVE across time: summing
+      daily values double-counts and produces a meaningless number. To read
+      a snapshot metric for a period, use the value at the end of the period
+      (maximum snapshot_date within the period). Examples: active customers,
+      total inventory value, slow-moving SKU count.
+    domain: shared
+    owner: analytics_team
+    related_metrics:
+      - active_customers_30d
+      - active_customers_90d
+      - total_inventory_value
+      - days_of_supply
+      - slow_moving_sku_count
+    synonyms:
+      - "non-additive metric"
+      - "point-in-time metric"
+      - "stock metric"
+
+  - term: "B2B Customer"
+    definition: |
+      A business customer (company or reseller) rather than a retail consumer.
+      Identified via the is_b2b_customer flag in dim_customer. B2B customers
+      tend to have higher AOV and longer repurchase cycles. Segment-level
+      metrics can be filtered to B2B using this flag.
+    domain: customer
+    owner: sales_team
+    related_metrics: []
+    synonyms:
+      - "wholesale customer"
+      - "trade customer"
+      - "business account"
+
+  - term: "Cohort"
+    definition: |
+      A group of customers (or SKUs) that share a common starting point —
+      typically acquisition date or first order date. Cohort analysis tracks
+      how a group evolves over time, independent of new entrants. Example:
+      "the January 2025 acquisition cohort" = all customers whose first order
+      was in January 2025.
+    domain: customer
+    owner: growth_team
+    related_metrics:
+      - lifetime_value
+      - sell_through_rate
+    synonyms:
+      - "acquisition cohort"
+      - "customer cohort"
+      - "vintage"
+
+  # ─── Sales Analytics terms ───────────────────────────────────────────────────
+
+  - term: "Gross Merchandise Value"
+    abbreviation: "GMV"
+    definition: |
+      The total value of orders placed in a period, after discounts but before
+      refunds. GMV is the top-line volume of commerce moving through the store.
+      It excludes tax and shipping (which are pass-throughs, not revenue) and
+      excludes cancelled orders. GMV is NOT the amount the business keeps — use
+      Net Revenue for that.
+    domain: sales
+    owner: finance_team
+    related_metrics:
+      - gmv
+    synonyms:
+      - "gross sales"
+      - "total sales"
+      - "topline"
+      - "gross order value"
+    technical_definition: |
+      SUM(fact_orders.gross_amount)
+      WHERE order_status NOT IN ('cancelled')
+        AND NOT is_test_order
+
+  - term: "Net Revenue"
+    definition: |
+      Revenue the business retains after discounts and refunds. The formula is:
+      GMV − discounts − refunds. Tax and shipping are excluded (tax is a
+      liability owed to authorities; shipping is a pass-through cost). Net
+      revenue is the figure reported to investors and the denominator in most
+      efficiency ratios (AOV, ROAS, etc.).
+    domain: sales
+    owner: finance_team
+    related_metrics:
+      - net_revenue
+      - revenue_by_channel
+    synonyms:
+      - "net sales"
+      - "net rev"
+      - "revenue after refunds"
+      - "real revenue"
+      - "what we kept"
+    technical_definition: |
+      SUM(fact_orders.gross_amount
+          - fact_orders.discount_amount
+          - fact_orders.refunded_amount)
+      WHERE order_status NOT IN ('cancelled')
+        AND NOT is_test_order
+
+  - term: "Average Order Value"
+    abbreviation: "AOV"
+    definition: |
+      Net revenue divided by the count of completed orders in the period.
+      A common error is averaging individual order amounts — that produces
+      a different (typically lower) number because it weights each order
+      equally regardless of size. The pack always computes AOV as
+      total net revenue ÷ total orders (macro-average), which is correct
+      for analytical slicing.
+    domain: sales
+    owner: marketing_team
+    related_metrics:
+      - average_order_value
+    synonyms:
+      - "AOV"
+      - "average basket"
+      - "average cart value"
+      - "average purchase value"
+      - "mean order value"
+    technical_definition: |
+      SUM(net_revenue_amount) / COUNT(DISTINCT order_id)
+
+  - term: "Revenue Growth"
+    definition: |
+      The percentage change in net revenue between the current period and the
+      prior period of the same length. NULL when prior-period revenue is zero.
+      Most meaningful at weekly, monthly, or quarterly grain — daily revenue
+      growth is too volatile to be useful.
+    domain: sales
+    owner: finance_team
+    related_metrics:
+      - revenue_growth_pct
+    synonyms:
+      - "revenue growth %"
+      - "growth rate"
+      - "MoM growth"
+      - "YoY growth"
+
+  - term: "Order Count"
+    definition: |
+      The number of distinct completed orders in the period. Refunded orders
+      are still counted — returning a product doesn't un-place the order.
+      Cancelled orders are excluded.
+    domain: sales
+    owner: operations_team
+    related_metrics:
+      - order_count
+    synonyms:
+      - "number of orders"
+      - "orders placed"
+      - "transaction count"
+
+  - term: "Refund Rate"
+    definition: |
+      The percentage of revenue (GMV) that was refunded in a period. Unlike
+      return rate (which is unit-based), refund rate is revenue-based. Refunds
+      are attributed to the refund date, not the original order date — a
+      refund in March against a February order counts in March. Most meaningful
+      at weekly or monthly grain; daily values are too noisy.
+    domain: sales
+    owner: operations_team
+    related_metrics:
+      - refund_rate
+    synonyms:
+      - "refund percentage"
+      - "% refunded"
+      - "revenue refund rate"
+
+  - term: "Return Rate"
+    definition: |
+      The percentage of units sold that were returned (refunded_quantity /
+      quantity × 100). Unit-based — use refund rate for revenue impact.
+      Most actionable when sliced by product category, where high return
+      rates often signal quality or sizing issues.
+    domain: sales
+    owner: operations_team
+    related_metrics:
+      - return_rate
+    synonyms:
+      - "return percentage"
+      - "% returned"
+      - "unit return rate"
+
+  - term: "Revenue by Channel"
+    definition: |
+      Net revenue grouped by acquisition or sales channel. Uses the proprietary
+      channel hierarchy (online → marketplace → social → search). Slicing net
+      revenue by channel reveals which channels drive the most valuable orders.
+    domain: sales
+    owner: marketing_team
+    related_metrics:
+      - revenue_by_channel
+    synonyms:
+      - "channel revenue"
+      - "revenue per channel"
+      - "sales by channel"
+
+  - term: "Tax Collected"
+    definition: |
+      Total tax assessed on non-cancelled orders. This is the gross tax
+      collected — refunded tax is NOT subtracted. For net tax filing, compute:
+      tax_collected − SUM(refund tax amounts). Almost always reported by
+      geography (country, state/province) for filing purposes.
+    domain: sales
+    owner: finance_team
+    related_metrics:
+      - tax_collected
+    synonyms:
+      - "sales tax"
+      - "VAT collected"
+      - "GST collected"
+      - "tax revenue"
+
+  # ─── Customer 360 terms ──────────────────────────────────────────────────────
+
+  - term: "Active Customer"
+    definition: |
+      A customer with at least one completed order in the trailing 30 days
+      (30-day variant). The 90-day variant covers industries with longer purchase
+      cycles (furniture, mattresses). Active customer counts are non-additive
+      across time — the same customer appears in multiple days' snapshots.
+      Always read active customers as a point-in-time count (as of the max
+      snapshot_date in the period).
+    domain: customer
+    owner: growth_team
+    related_metrics:
+      - active_customers_30d
+      - active_customers_90d
+    synonyms:
+      - "engaged customer"
+      - "recent buyer"
+      - "30-day active"
+      - "active buyer"
+    technical_definition: |
+      COUNT(DISTINCT customer_id)
+      WHERE is_active_30d = TRUE
+        AND snapshot_date = <max snapshot_date in period>
+
+  - term: "New Customer"
+    definition: |
+      A customer whose first completed order falls in the analysis period.
+      Customers who registered but never purchased are not counted. New customer
+      count IS additive across time (unlike active customers) — you can sum
+      monthly new customers to get an annual total.
+    domain: customer
+    owner: growth_team
+    related_metrics:
+      - new_customers
+    synonyms:
+      - "first-time buyer"
+      - "new buyer"
+      - "first purchase"
+      - "customer acquisition"
+    technical_definition: |
+      COUNT(DISTINCT customer_id)
+      WHERE is_first_order = TRUE
+        AND order_status NOT IN ('cancelled')
+
+  - term: "Repeat Customer"
+    definition: |
+      A customer who placed an order in the analysis period AND had at least
+      one prior completed order before that period. A customer placing their
+      2nd and 3rd order in the same month counts once. Repeat customer count
+      is period-based and additive across time.
+    domain: customer
+    owner: growth_team
+    related_metrics:
+      - repeat_customer_count
+      - repeat_purchase_rate
+    synonyms:
+      - "returning customer"
+      - "returning buyer"
+      - "loyal customer"
+    technical_definition: |
+      COUNT(DISTINCT customer_id)
+      WHERE is_repeat_order = TRUE
+        AND order_status NOT IN ('cancelled')
+
+  - term: "Repeat Purchase Rate"
+    definition: |
+      The percentage of purchasing customers in a period who are repeat buyers.
+      Denominator: all customers who placed any order (new + repeat).
+      Numerator: repeat customers only. A common alternative divides by total
+      lifetime customers — this catalog uses the period-based definition because
+      it is actionable for marketing: it answers "of everyone who bought this
+      month, what fraction had bought before?"
+    domain: customer
+    owner: growth_team
+    related_metrics:
+      - repeat_purchase_rate
+    synonyms:
+      - "returning customer rate"
+      - "repeat rate"
+      - "loyalty rate"
+
+  - term: "Customer Lifetime Value"
+    abbreviation: "LTV"
+    definition: |
+      The total net revenue a customer has generated from their first order to
+      the current snapshot date. This is "LTV-to-date," not a predictive model.
+      Most useful when sliced by acquisition cohort to compare how different
+      cohorts compound over time. The average LTV is the basis for KPI 15.
+      Predictive LTV (forecasting future spend) is a v2 module.
+    domain: customer
+    owner: growth_team
+    related_metrics:
+      - lifetime_value
+    synonyms:
+      - "LTV"
+      - "CLV"
+      - "customer value"
+      - "customer lifetime value"
+      - "value per customer"
+      - "lifetime spend"
+
+  - term: "Average Time Between Orders"
+    definition: |
+      The average number of calendar days between consecutive orders for
+      customers with 2+ orders. Only meaningful for repeat customers.
+      Pre-computed via a LAG window function in mart_pro_customer_behavior.
+      Aggregate to weekly or monthly grain — daily values are very noisy.
+      A declining trend indicates customers are buying more frequently.
+    domain: customer
+    owner: growth_team
+    related_metrics:
+      - avg_time_between_orders
+    synonyms:
+      - "inter-order gap"
+      - "purchase frequency"
+      - "repurchase interval"
+      - "days between orders"
+
+  - term: "Customer Acquisition Cost"
+    abbreviation: "CAC"
+    definition: |
+      Marketing spend divided by the number of new customers attributed to
+      a channel in the same period. Uses last-touch attribution in v1 — the
+      channel on the customer's first order is the acquisition channel. CAC
+      for organic channels = $0 (no paid spend; organic cost is not modeled
+      in v1). CAC for "direct" traffic = NULL (no channel attribution possible).
+    domain: marketing
+    owner: marketing_team
+    related_metrics:
+      - cac_by_channel
+    synonyms:
+      - "CAC"
+      - "cost per acquisition"
+      - "CPA"
+      - "what we pay per new customer"
+      - "acquisition cost"
+
+  - term: "Return on Ad Spend"
+    abbreviation: "ROAS"
+    definition: |
+      Warehouse-attributed net revenue divided by ad spend for a channel,
+      typically expressed as a multiple (e.g., 3.5× means $3.50 revenue per
+      $1 of ad spend). This is NOT the platform-reported ROAS (Meta, Google),
+      which is typically 2–4× higher due to wider attribution windows and
+      overlap. Reporting warehouse ROAS alongside platform ROAS is a common
+      Power BI pattern.
+    domain: marketing
+    owner: marketing_team
+    related_metrics:
+      - roas_by_channel
+    synonyms:
+      - "ROAS"
+      - "return on ad spend"
+      - "advertising ROI"
+      - "ad efficiency"
+
+  - term: "Email Engagement Rate"
+    definition: |
+      (Opens + Clicks) ÷ Delivered × 100. Measures how actively recipients
+      interact with emails. Apple Mail Privacy Protection (introduced 2021)
+      auto-opens emails on Apple devices, inflating open counts by ~30–50%.
+      This inflation is documented but not adjusted in the KPI; clients can
+      apply a correction factor via a config var.
+    domain: marketing
+    owner: marketing_team
+    related_metrics:
+      - email_engagement_rate
+    synonyms:
+      - "email engagement"
+      - "engagement rate"
+      - "email performance"
+      - "open and click rate"
+
+  # ─── Inventory Health terms ───────────────────────────────────────────────────
+
+  - term: "Total Inventory Value"
+    definition: |
+      The total cost-basis value of inventory on hand across all locations,
+      at a specific point in time (quantity_on_hand × unit_cost per SKU).
+      This is inventory at cost, not at retail price. NULL for SKUs without
+      tracked unit cost. Non-additive across time — always read at a specific
+      snapshot date.
+    domain: inventory
+    owner: operations_team
+    related_metrics:
+      - total_inventory_value
+    synonyms:
+      - "inventory value"
+      - "stock value"
+      - "cost of inventory"
+      - "inventory at cost"
+    technical_definition: |
+      SUM(fact_inventory_snapshot.inventory_value)
+      WHERE snapshot_date = <max snapshot_date in period>
+
+  - term: "Inventory Turnover"
+    definition: |
+      How many times the average inventory is "turned over" (sold and replaced)
+      in a year. Computed as COGS ÷ average inventory value, annualized.
+      Industry benchmark for D2C retail: 4–8 turns per year. High turnover =
+      efficient use of working capital; low turnover = overstock. NULL when
+      unit cost is not tracked.
+    domain: inventory
+    owner: merchandising_team
+    related_metrics:
+      - inventory_turnover
+    synonyms:
+      - "inventory turns"
+      - "stock turn"
+      - "turnover ratio"
+
+  - term: "Days of Supply"
+    abbreviation: "DOS"
+    definition: |
+      How many days of inventory an SKU has at its current sales rate.
+      Calculated as quantity_available ÷ trailing 28-day average daily sales.
+      NULL when there have been no sales in 28 days (those SKUs are slow
+      movers). Alert thresholds: < 14 days = reorder review needed;
+      > 90 days = overstock risk.
+    domain: inventory
+    owner: operations_team
+    related_metrics:
+      - days_of_supply
+    synonyms:
+      - "DOS"
+      - "stock days"
+      - "days of inventory"
+      - "weeks of supply"
+      - "days on hand"
+
+  - term: "Stockout"
+    definition: |
+      A condition where an SKU has zero available units, making it impossible
+      to fulfill orders. Tracked via is_out_of_stock in the daily inventory
+      snapshot. The stockout rate KPI measures what percentage of SKUs are
+      stocked out at any given time.
+    domain: inventory
+    owner: operations_team
+    related_metrics:
+      - stockout_rate
+    synonyms:
+      - "out of stock"
+      - "OOS"
+      - "zero stock"
+      - "stock shortage"
+
+  - term: "Sell-Through Rate"
+    definition: |
+      The percentage of a cohort of SKUs that has been sold within a fixed
+      window (typically 30, 60, or 90 days). High sell-through = SKU is
+      selling well; low sell-through = risk of clearance or markdown. The
+      v1 pack uses a proxy (units sold ÷ (units sold + units remaining)) due
+      to the absence of receipt-level data. True cohort-based sell-through
+      (tracking a specific receipt batch) is a v2 feature.
+    domain: inventory
+    owner: merchandising_team
+    related_metrics:
+      - sell_through_rate
+    synonyms:
+      - "sell through"
+      - "STR"
+      - "inventory sell-through"
+      - "% sold"
+
+  - term: "Slow-Moving SKU"
+    definition: |
+      A SKU that has had no net sales in the trailing 60 days (default;
+      configurable via vars.slow_mover_days). Each slow-moving SKU represents
+      working capital tied up in dead stock. The financial impact is
+      SUM(inventory_value WHERE is_slow_mover = TRUE).
+    domain: inventory
+    owner: merchandising_team
+    related_metrics:
+      - slow_moving_sku_count
+    synonyms:
+      - "dead stock"
+      - "stagnant inventory"
+      - "non-moving SKU"
+      - "slow seller"

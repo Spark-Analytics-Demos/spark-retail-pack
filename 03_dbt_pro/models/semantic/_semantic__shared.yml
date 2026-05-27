@@ -1,0 +1,284 @@
+version: 2
+
+# Shared semantic objects — entities and dimensions used across all three modules.
+# Per §7.9: centralising these means a change to (e.g.) customer_segment propagates
+# to every metric that slices by it, without updating three separate files.
+# These dimension semantic models are referenced by fact semantic models via entity joins.
+
+semantic_models:
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Customer dimension
+  # ─────────────────────────────────────────────────────────────────────
+  - name: customer_dim
+    description: |
+      Customer identity dimension (SCD2). One row per customer per version.
+      Joins to orders, customer_state, email_engagement via the 'customer' entity.
+      See §4.3 for dim_customer specification.
+    model: ref('dim_customer')
+    entities:
+      - name: customer
+        type: primary
+        expr: customer_id
+    dimensions:
+      - name: customer_status
+        type: categorical
+        expr: customer_status
+      - name: customer_segment
+        type: categorical
+        expr: customer_segment
+      - name: acquisition_channel
+        type: categorical
+        expr: acquisition_channel
+      - name: acquisition_source_system
+        type: categorical
+        expr: acquisition_source_system
+      - name: country_code
+        type: categorical
+        expr: country_code
+      - name: region
+        type: categorical
+        expr: region
+      - name: is_b2b_customer
+        type: categorical
+        expr: is_b2b_customer
+      - name: is_current
+        type: categorical
+        expr: is_current
+      - name: first_order_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: first_order_date
+      - name: acquisition_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: acquisition_date
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Product dimension
+  # ─────────────────────────────────────────────────────────────────────
+  - name: product_dim
+    description: |
+      Product and SKU variant dimension (SCD2). One row per SKU per version.
+      Joins to order_lines, inventory_snapshot via the 'product' entity.
+      See §4.7 for dim_product specification.
+    model: ref('dim_product')
+    entities:
+      - name: product
+        type: primary
+        expr: product_sk
+      - name: sku
+        type: natural
+        expr: sku
+    dimensions:
+      - name: product_title
+        type: categorical
+        expr: product_title
+      - name: category
+        type: categorical
+        expr: category
+      - name: subcategory
+        type: categorical
+        expr: subcategory
+      - name: vendor
+        type: categorical
+        expr: vendor
+      - name: product_type
+        type: categorical
+        expr: product_type
+      - name: is_active
+        type: categorical
+        expr: is_active
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Channel dimension
+  # ─────────────────────────────────────────────────────────────────────
+  - name: channel_dim
+    description: |
+      Acquisition and sales channel dimension. Joins to orders, marketing_spend
+      via the 'channel' entity. See §4.8 for dim_channel specification.
+    model: ref('dim_channel')
+    entities:
+      - name: channel
+        type: primary
+        expr: channel_sk
+    dimensions:
+      - name: channel_name
+        type: categorical
+        expr: channel_name
+      - name: channel_category
+        type: categorical
+        expr: channel_category
+      - name: channel_type
+        type: categorical
+        expr: channel_type
+      - name: is_paid
+        type: categorical
+        expr: is_paid
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Geography dimension
+  # ─────────────────────────────────────────────────────────────────────
+  - name: geography_dim
+    description: |
+      Shipping geography dimension (country-level). Joins to orders via the
+      'geography' entity. See §4.9 for dim_geography specification.
+    model: ref('dim_geography')
+    entities:
+      - name: geography
+        type: primary
+        expr: geography_sk
+    dimensions:
+      - name: country_code
+        type: categorical
+        expr: country_code
+      - name: country_name
+        type: categorical
+        expr: country_name
+      - name: country_region
+        type: categorical
+        expr: country_region
+      - name: subregion
+        type: categorical
+        expr: subregion
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Date dimension
+  # ─────────────────────────────────────────────────────────────────────
+  - name: date_dim
+    description: |
+      Standard calendar date dimension. Used as a join target when callers
+      need richer date attributes (holiday flags, fiscal periods).
+      See §4.5 for dim_date specification.
+    model: ref('dim_date')
+    entities:
+      - name: date
+        type: primary
+        expr: date_sk
+    dimensions:
+      - name: date_actual
+        type: time
+        type_params:
+          time_granularity: day
+        expr: date_actual
+      - name: day_name
+        type: categorical
+        expr: day_name
+      - name: month_name
+        type: categorical
+        expr: month_name
+      - name: quarter_name
+        type: categorical
+        expr: quarter_name
+      - name: fiscal_year
+        type: categorical
+        expr: fiscal_year
+      - name: is_holiday
+        type: categorical
+        expr: is_holiday
+      - name: is_weekend
+        type: categorical
+        expr: is_weekend
+      - name: is_business_day
+        type: categorical
+        expr: is_business_day
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Warehouse location dimension
+  # ─────────────────────────────────────────────────────────────────────
+  - name: warehouse_location_dim
+    description: |
+      Shopify location dimension (warehouses, retail, third-party).
+      Joins to inventory_snapshot via the 'location' entity.
+      See §4.10 for dim_warehouse_location specification.
+    model: ref('dim_warehouse_location')
+    entities:
+      - name: location
+        type: primary
+        expr: location_sk
+    dimensions:
+      - name: location_name
+        type: categorical
+        expr: location_name
+      - name: location_type
+        type: categorical
+        expr: location_type
+      - name: country_code
+        type: categorical
+        expr: country_code
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Payment method dimension
+  # ─────────────────────────────────────────────────────────────────────
+  - name: payment_method_dim
+    description: |
+      Payment method dimension (card, BNPL, digital wallet, etc.).
+      Joins to orders via the 'payment_method' entity.
+      See §4.12 for dim_payment_method specification.
+    model: ref('dim_payment_method')
+    entities:
+      - name: payment_method
+        type: primary
+        expr: payment_method_sk
+    dimensions:
+      - name: payment_method_type
+        type: categorical
+        expr: payment_method_type
+      - name: payment_method_name
+        type: categorical
+        expr: payment_method_name
+      - name: card_brand
+        type: categorical
+        expr: card_brand
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Marketing campaign dimension
+  # ─────────────────────────────────────────────────────────────────────
+  - name: marketing_campaign_dim
+    description: |
+      Marketing campaign dimension (SCD2). Meta Ads campaigns in v1.
+      Joins to marketing_spend via the 'campaign' entity.
+      See §4.13 for dim_marketing_campaign specification.
+    model: ref('dim_marketing_campaign')
+    entities:
+      - name: campaign
+        type: primary
+        expr: campaign_sk
+    dimensions:
+      - name: campaign_name
+        type: categorical
+        expr: campaign_name
+      - name: campaign_objective
+        type: categorical
+        expr: campaign_objective
+      - name: campaign_status
+        type: categorical
+        expr: campaign_status
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Email campaign dimension
+  # ─────────────────────────────────────────────────────────────────────
+  - name: email_campaign_dim
+    description: |
+      Klaviyo email campaign and flow dimension.
+      Joins to email_engagement via the 'email_campaign' entity.
+      See §4.11 for dim_email_campaign specification.
+    model: ref('dim_email_campaign')
+    entities:
+      - name: email_campaign
+        type: primary
+        expr: email_campaign_sk
+    dimensions:
+      - name: campaign_name
+        type: categorical
+        expr: campaign_name
+      - name: campaign_type
+        type: categorical
+        expr: campaign_type
+      - name: send_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: send_date

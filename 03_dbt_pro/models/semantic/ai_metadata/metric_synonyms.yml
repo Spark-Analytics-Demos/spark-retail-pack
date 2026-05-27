@@ -1,0 +1,304 @@
+# Metric synonym mappings for natural-language query resolution.
+# Per §7.13: consumed by the Spark AI assistant to resolve informal or abbreviated
+# metric names to their canonical MetricFlow metric names.
+#
+# When a user types "What's our CAC for Facebook last month?", the AI resolves:
+#   "CAC" → cac_by_channel
+#   "Facebook" → channel = paid_social_meta
+#
+# Terms should cover: abbreviations, informal names, misspellings, domain jargon,
+# and common alternative definitions the user might mean. The AI ranks candidates
+# by term frequency and selects the best match using the canonical kpi_id + module.
+
+synonyms:
+
+  # ─── Sales Analytics (KPIs 1–9) ──────────────────────────────────────────────
+
+  - metric: gmv
+    kpi_id: sales.gmv
+    terms:
+      - "gross merchandise value"
+      - "total sales"
+      - "gross sales"
+      - "topline"
+      - "gross order value"
+      - "total order value"
+      - "total revenue before refunds"
+      - "pre-refund revenue"
+
+  - metric: net_revenue
+    kpi_id: sales.net_revenue
+    terms:
+      - "net revenue"
+      - "net rev"
+      - "net sales"
+      - "revenue after refunds"
+      - "real revenue"
+      - "what we kept"
+      - "retained revenue"
+      - "revenue"
+      - "sales"
+      - "total revenue"
+
+  - metric: order_count
+    kpi_id: sales.order_count
+    terms:
+      - "order count"
+      - "number of orders"
+      - "orders"
+      - "orders placed"
+      - "transaction count"
+      - "total orders"
+      - "order volume"
+
+  - metric: average_order_value
+    kpi_id: sales.average_order_value
+    terms:
+      - "average order value"
+      - "AOV"
+      - "average basket"
+      - "average cart value"
+      - "average purchase value"
+      - "mean order value"
+      - "avg order value"
+      - "basket size"
+
+  - metric: revenue_growth_pct
+    kpi_id: sales.revenue_growth_pct
+    terms:
+      - "revenue growth"
+      - "revenue growth %"
+      - "growth rate"
+      - "MoM growth"
+      - "month over month growth"
+      - "YoY growth"
+      - "year over year growth"
+      - "revenue change"
+      - "how much did revenue grow"
+
+  - metric: refund_rate
+    kpi_id: sales.refund_rate
+    terms:
+      - "refund rate"
+      - "refund percentage"
+      - "% refunded"
+      - "revenue refund rate"
+      - "how much is being refunded"
+      - "refund %"
+
+  - metric: return_rate
+    kpi_id: sales.return_rate
+    terms:
+      - "return rate"
+      - "returns"
+      - "return percentage"
+      - "% returned"
+      - "unit return rate"
+      - "product return rate"
+      - "how many units are being returned"
+
+  - metric: revenue_by_channel
+    kpi_id: sales.revenue_by_channel
+    terms:
+      - "revenue by channel"
+      - "channel revenue"
+      - "revenue per channel"
+      - "sales by channel"
+      - "channel sales"
+      - "which channel makes the most money"
+
+  - metric: tax_collected
+    kpi_id: sales.tax_collected
+    terms:
+      - "tax collected"
+      - "sales tax"
+      - "VAT collected"
+      - "GST collected"
+      - "tax revenue"
+      - "taxes"
+      - "total tax"
+
+  # ─── Customer 360 (KPIs 10–19) ────────────────────────────────────────────────
+
+  - metric: active_customers_30d
+    kpi_id: customer.active_customers_30d
+    terms:
+      - "active customers"
+      - "active customers 30 day"
+      - "30-day active customers"
+      - "engaged customers"
+      - "recent buyers"
+      - "active buyers"
+      - "how many customers are active"
+      - "customers who bought recently"
+
+  - metric: active_customers_90d
+    kpi_id: customer.active_customers_90d
+    terms:
+      - "active customers 90 day"
+      - "90-day active customers"
+      - "customers active in 90 days"
+      - "quarterly active customers"
+
+  - metric: new_customers
+    kpi_id: customer.new_customers
+    terms:
+      - "new customers"
+      - "first-time buyers"
+      - "customer acquisition"
+      - "new buyers"
+      - "new purchasers"
+      - "customers acquired"
+      - "how many new customers"
+
+  - metric: repeat_customer_count
+    kpi_id: customer.repeat_customer_count
+    terms:
+      - "repeat customers"
+      - "returning customers"
+      - "repeat customer count"
+      - "loyal customers"
+      - "returning buyers"
+      - "customers who bought again"
+
+  - metric: repeat_purchase_rate
+    kpi_id: customer.repeat_purchase_rate
+    terms:
+      - "repeat purchase rate"
+      - "returning customer rate"
+      - "repeat rate"
+      - "loyalty rate"
+      - "% of customers who came back"
+      - "customer retention rate"
+      - "how many customers repurchase"
+
+  - metric: lifetime_value
+    kpi_id: customer.lifetime_value
+    terms:
+      - "lifetime value"
+      - "LTV"
+      - "CLV"
+      - "customer lifetime value"
+      - "value per customer"
+      - "customer value"
+      - "lifetime spend"
+      - "how much does a customer spend"
+      - "average customer value"
+
+  - metric: avg_time_between_orders
+    kpi_id: customer.avg_time_between_orders
+    terms:
+      - "average time between orders"
+      - "inter-order gap"
+      - "purchase frequency"
+      - "repurchase interval"
+      - "days between orders"
+      - "how often do customers buy"
+      - "purchase cadence"
+      - "order frequency"
+
+  - metric: cac_by_channel
+    kpi_id: customer.cac_by_channel
+    terms:
+      - "customer acquisition cost"
+      - "CAC"
+      - "cost per acquisition"
+      - "CPA"
+      - "what we pay per new customer"
+      - "acquisition cost"
+      - "cost to acquire a customer"
+      - "marketing cost per customer"
+      - "how much does it cost to get a customer"
+
+  - metric: roas_by_channel
+    kpi_id: customer.roas_by_channel
+    terms:
+      - "return on ad spend"
+      - "ROAS"
+      - "advertising ROI"
+      - "ad efficiency"
+      - "ad return"
+      - "how much do we make per dollar spent on ads"
+      - "marketing ROI"
+      - "revenue per ad dollar"
+
+  - metric: email_engagement_rate
+    kpi_id: customer.email_engagement_rate
+    terms:
+      - "email engagement rate"
+      - "email engagement"
+      - "engagement rate"
+      - "email performance"
+      - "open and click rate"
+      - "email open rate"
+      - "how engaged are subscribers"
+      - "email marketing performance"
+
+  # ─── Inventory Health (KPIs 20–25) ────────────────────────────────────────────
+
+  - metric: total_inventory_value
+    kpi_id: inventory.total_inventory_value
+    terms:
+      - "total inventory value"
+      - "inventory value"
+      - "stock value"
+      - "cost of inventory"
+      - "inventory at cost"
+      - "how much is the inventory worth"
+      - "inventory balance"
+
+  - metric: inventory_turnover
+    kpi_id: inventory.inventory_turnover
+    terms:
+      - "inventory turnover"
+      - "inventory turns"
+      - "stock turn"
+      - "turnover ratio"
+      - "how fast is inventory moving"
+      - "how many times do we sell through our stock"
+
+  - metric: days_of_supply
+    kpi_id: inventory.days_of_supply
+    terms:
+      - "days of supply"
+      - "DOS"
+      - "stock days"
+      - "days of inventory"
+      - "weeks of supply"
+      - "days on hand"
+      - "how many days of stock do we have"
+      - "inventory coverage"
+
+  - metric: stockout_rate
+    kpi_id: inventory.stockout_rate
+    terms:
+      - "stockout rate"
+      - "out of stock rate"
+      - "OOS rate"
+      - "% out of stock"
+      - "stockout percentage"
+      - "how many SKUs are out of stock"
+      - "availability rate"
+
+  - metric: sell_through_rate
+    kpi_id: inventory.sell_through_rate
+    terms:
+      - "sell-through rate"
+      - "sell through"
+      - "STR"
+      - "inventory sell-through"
+      - "% sold"
+      - "how much of our inventory has sold"
+      - "sell-through percentage"
+
+  - metric: slow_moving_sku_count
+    kpi_id: inventory.slow_moving_sku_count
+    terms:
+      - "slow-moving SKU count"
+      - "slow moving SKUs"
+      - "dead stock count"
+      - "stagnant inventory"
+      - "non-moving SKUs"
+      - "slow sellers"
+      - "how many SKUs aren't selling"
+      - "dead stock SKUs"

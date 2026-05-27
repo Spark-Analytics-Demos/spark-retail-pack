@@ -1,0 +1,398 @@
+version: 2
+
+# Inventory Health semantic models and metrics — KPIs 20–25.
+# Per §7.8 design patterns.
+# KPIs 20, 22, 23 — OSS, reference fact_inventory_snapshot directly.
+# KPIs 21, 24, 25 — Pro, reference mart_pro_inventory (trailing COGS/sell-through
+#   windows + Pro flags). mart_pro_inventory is required because LAG-derived trailing
+#   metrics and is_slow_mover / is_low_stock flags are not in the raw fact.
+# KPI 21 helper metrics (cogs_last_30d_metric, avg_inventory_value) are internal;
+#   inventory_turnover is the consumer-facing derived metric.
+
+semantic_models:
+
+  # ─────────────────────────────────────────────────────────────────────
+  # fact_inventory_snapshot — daily SKU position snapshot
+  # ─────────────────────────────────────────────────────────────────────
+  - name: inventory_snapshot
+    description: |
+      Daily snapshot of SKU stock position by location. One row per
+      (snapshot_date × product_sk × location_sk). Source for OSS inventory
+      KPIs (20, 22, 23). NON-ADDITIVE across time — always query as a
+      point-in-time snapshot (use max snapshot_date within period for
+      end-of-period values). See §4.26 for fact_inventory_snapshot spec.
+    model: ref('fact_inventory_snapshot')
+    defaults:
+      agg_time_dimension: snapshot_date
+
+    entities:
+      - name: inventory_snapshot_record
+        type: natural
+        expr: inventory_snapshot_sk
+      - name: product
+        type: foreign
+        expr: product_sk
+      - name: location
+        type: foreign
+        expr: location_sk
+
+    measures:
+      - name: inventory_value
+        description: |
+          Cost-basis inventory value (quantity_on_hand × unit_cost).
+          NULL when unit_cost not tracked — surfaces as a data quality alert.
+        agg: sum
+        expr: inventory_value
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: quantity_available
+        description: Units available for sale (on_hand minus allocated).
+        agg: sum
+        expr: quantity_available
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: quantity_on_hand
+        description: Units physically on hand across all locations.
+        agg: sum
+        expr: quantity_on_hand
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: sku_count
+        description: Count of distinct SKUs in snapshot. Denominator for KPI 23.
+        agg: count_distinct
+        expr: sku
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: sku_count_out_of_stock
+        description: Count of distinct SKUs at zero available stock. Numerator for KPI 23.
+        agg: count_distinct
+        expr: "CASE WHEN is_out_of_stock THEN sku END"
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: avg_days_of_supply
+        description: |
+          Average days of available stock at current sales velocity across SKUs.
+          NULL for SKUs with no sales in trailing 28 days (those are flagged
+          as slow movers). See §5.6 KPI 22.
+        agg: average
+        expr: days_of_supply
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+
+    dimensions:
+      - name: snapshot_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: snapshot_date
+      - name: is_out_of_stock
+        type: categorical
+        expr: is_out_of_stock
+      - name: is_slow_mover
+        type: categorical
+        expr: is_slow_mover
+
+  # ─────────────────────────────────────────────────────────────────────
+  # mart_pro_inventory — pre-computed trailing metrics and Pro flags
+  # Wraps fact_inventory_snapshot with trailing sales windows, COGS,
+  # sell-through proxies, and is_slow_mover / is_low_stock / is_overstock.
+  # Required for KPIs 21, 24, 25 which need pre-computed window values.
+  # ─────────────────────────────────────────────────────────────────────
+  - name: pro_inventory
+    description: |
+      Pro inventory mart at (snapshot_date × product_sk × location_sk) grain.
+      Extends fact_inventory_snapshot with trailing COGS (30d/90d), sell-through
+      proxies (30d/60d), and Pro flags (is_slow_mover, is_low_stock,
+      is_overstock). Source for KPIs 21, 24, 25. Rebuilt daily; trailing
+      windows are relative to current_date(). See mart_pro_inventory spec.
+    model: ref('mart_pro_inventory')
+    defaults:
+      agg_time_dimension: snapshot_date
+
+    entities:
+      - name: pro_inventory_record
+        type: natural
+        expr: mart_pro_inventory_sk
+      - name: product
+        type: foreign
+        expr: product_sk
+      - name: location
+        type: foreign
+        expr: location_sk
+
+    measures:
+      - name: cogs_last_30d
+        description: |
+          Net COGS from trailing 30-day sales window at SKU level (location-agnostic
+          in v1). NULL when unit_cost not tracked. Numerator for KPI 21.
+        agg: sum
+        expr: cogs_last_30d
+      - name: inventory_value_pro
+        description: |
+          Cost-basis inventory value from mart_pro_inventory. Matches
+          fact_inventory_snapshot.inventory_value; exposed here for KPI 21
+          denominator join within the pro_inventory semantic model.
+        agg: sum
+        expr: inventory_value
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: sell_through_rate_60d_avg
+        description: |
+          Average 60-day sell-through rate across SKUs on snapshot_date.
+          v1 proxy: units_sold_60d / (units_sold_60d + quantity_available) × 100.
+          Not a true cohort receipt-based rate (v2 will use inventory movements).
+          Default window for KPI 24.
+        agg: average
+        expr: sell_through_rate_60d
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: sell_through_rate_30d_avg
+        description: 30-day sell-through rate proxy. Variant measure for KPI 24.
+        agg: average
+        expr: sell_through_rate_30d
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: sku_count_slow_moving
+        description: |
+          Count of distinct slow-moving SKUs (no net sales in trailing 60 days)
+          as of snapshot_date. Basis for KPI 25.
+        agg: count_distinct
+        expr: "CASE WHEN is_slow_mover THEN sku END"
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: sku_count_pro
+        description: Count of distinct SKUs in Pro inventory snapshot.
+        agg: count_distinct
+        expr: sku
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+
+    dimensions:
+      - name: snapshot_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: snapshot_date
+      - name: is_slow_mover
+        type: categorical
+        expr: is_slow_mover
+      - name: is_low_stock
+        type: categorical
+        expr: is_low_stock
+      - name: is_overstock
+        type: categorical
+        expr: is_overstock
+      - name: is_out_of_stock
+        type: categorical
+        expr: is_out_of_stock
+
+# ─────────────────────────────────────────────────────────────────────────
+# Inventory Health metrics — KPIs 20–25
+# ─────────────────────────────────────────────────────────────────────────
+
+metrics:
+
+  # KPI 20 — Total Inventory Value (OSS)
+  - name: total_inventory_value
+    label: "Total Inventory Value"
+    description: |
+      Cost-basis inventory value (quantity_on_hand × unit_cost) at end-of-period
+      snapshot. NON-ADDITIVE across time — never sum daily values; read at the
+      max snapshot_date within the period. NULL when unit_cost not tracked.
+      Use the maximum snapshot_date in the period to read this metric.
+      See §5.6 KPI 20.
+    type: simple
+    type_params:
+      measure: inventory_value
+    meta:
+      owner: operations
+      module: inventory_health
+      tier: oss
+      kpi_id: inventory.total_inventory_value
+      catalog_section: "5.6 KPI 20"
+      additivity: non_additive
+      non_additive_dimension:
+        name: snapshot_date
+        window_choice: max
+
+  # KPI 21 — Inventory Turnover (Pro)
+  # Requires two helper metrics (cogs_last_30d_metric, avg_inventory_value)
+  # defined below, then composed into the derived turnover formula.
+  # Formula: (COGS_30d / inventory_value) × 12 annualizes the 30-day window.
+  - name: cogs_last_30d_metric
+    label: "COGS (Trailing 30 Days)"
+    description: |
+      Net COGS from trailing 30-day sales window. Internal helper for KPI 21
+      (Inventory Turnover). NULL when unit_cost not tracked.
+    type: simple
+    type_params:
+      measure: cogs_last_30d
+    meta:
+      owner: merchandising
+      module: inventory_health
+      tier: pro
+      kpi_id: inventory.cogs_last_30d
+      internal: true
+
+  - name: avg_inventory_value
+    label: "Average Inventory Value (Pro)"
+    description: |
+      Point-in-time cost-basis inventory value from mart_pro_inventory.
+      Internal helper for KPI 21 denominator. Non-additive — read at max
+      snapshot_date within the period.
+    type: simple
+    type_params:
+      measure: inventory_value_pro
+    meta:
+      owner: operations
+      module: inventory_health
+      tier: pro
+      kpi_id: inventory.avg_inventory_value
+      internal: true
+      additivity: non_additive
+
+  - name: inventory_turnover
+    label: "Inventory Turnover"
+    description: |
+      Annualized inventory turns: (COGS trailing 30 days / inventory value) × 12.
+      Annualization makes periods comparable — multiply monthly COGS rate by 12.
+      Industry benchmark for D2C retail: 4–8 turns/year. NULL when COGS data is
+      missing (unit_cost not tracked for any line in the window). Most actionable
+      sliced by category — high turns = working-capital efficiency; low turns =
+      overstock risk. Compute at monthly or quarterly grain; daily is too volatile.
+      See §5.6 KPI 21.
+    type: derived
+    type_params:
+      expr: "(cogs_30d / NULLIF(inv_value, 0)) * 12"
+      metrics:
+        - name: cogs_last_30d_metric
+          alias: cogs_30d
+        - name: avg_inventory_value
+          alias: inv_value
+    meta:
+      owner: merchandising
+      module: inventory_health
+      tier: pro
+      kpi_id: inventory.inventory_turnover
+      catalog_section: "5.6 KPI 21"
+      grain_exclusions: [daily]
+      benchmark: "4–8 turns/year for D2C retail"
+
+  # KPI 22 — Days of Supply (OSS)
+  - name: days_of_supply
+    label: "Days of Supply"
+    description: |
+      Average days of available inventory at current sales velocity
+      (quantity_available ÷ trailing 28-day avg daily sales rate). Pre-computed
+      in fact_inventory_snapshot. NULL for SKUs with no sales in 28 days — those
+      are flagged as slow movers (KPI 25). Alerts: < 14 days = reorder review;
+      > 90 days = overstock risk. Most actionable at SKU level; weekly grain
+      aggregation is more stable than daily. See §5.6 KPI 22.
+    type: simple
+    type_params:
+      measure: avg_days_of_supply
+    meta:
+      owner: operations
+      module: inventory_health
+      tier: oss
+      kpi_id: inventory.days_of_supply
+      catalog_section: "5.6 KPI 22"
+      additivity: non_additive
+      non_additive_dimension:
+        name: snapshot_date
+        window_choice: max
+
+  # KPI 23 — Stockout Rate (OSS)
+  - name: stockout_rate
+    label: "Stockout Rate"
+    description: |
+      Percentage of distinct SKUs at zero available stock at end of day
+      (end-of-day variant). Formula: sku_count_out_of_stock / sku_count × 100.
+      Period variant (% of SKUs that experienced any stockout day within the
+      period) is a catalog variant documented in §5.8, not encoded in v1.
+      Slice by category and location to identify concentration of stockouts.
+      See §5.6 KPI 23.
+    type: ratio
+    type_params:
+      numerator:
+        name: sku_count_out_of_stock
+      denominator:
+        name: sku_count
+    meta:
+      owner: operations
+      module: inventory_health
+      tier: oss
+      kpi_id: inventory.stockout_rate
+      catalog_section: "5.6 KPI 23"
+      additivity: non_additive
+      non_additive_dimension:
+        name: snapshot_date
+        window_choice: max
+
+  # KPI 24 — Sell-Through Rate (Pro)
+  # Default window: 60 days. 30-day variant available via sell_through_rate_30d.
+  # v1 proxy: units_sold_60d / (units_sold_60d + quantity_available) × 100.
+  # True cohort-based sell-through (tracking a receipt batch) requires
+  # fact_inventory_movements (receipt grain) — planned for v2.
+  - name: sell_through_rate
+    label: "Sell-Through Rate"
+    description: |
+      Percentage of SKU cohort sold within a trailing window. Default: 60 days.
+      v1 proxy: units_sold_60d / (units_sold_60d + quantity_available) × 100.
+      True cohort-based sell-through (tracking units received on a specific date
+      over a fixed window) requires receipt data not available in v1 — planned
+      for v2 via fact_inventory_movements. Apparel typically uses 30-day; durable
+      goods 90-day. Most useful sliced by category and season. See §5.6 KPI 24.
+    type: simple
+    type_params:
+      measure: sell_through_rate_60d_avg
+    meta:
+      owner: merchandising
+      module: inventory_health
+      tier: pro
+      kpi_id: inventory.sell_through_rate
+      catalog_section: "5.6 KPI 24"
+      grain_exclusions: [daily]
+      computation_note: "v1 proxy using quantity_available; true cohort receipt logic in v2."
+      additivity: non_additive
+      non_additive_dimension:
+        name: snapshot_date
+        window_choice: max
+
+  # KPI 25 — Slow-Moving SKU Count (Pro)
+  - name: slow_moving_sku_count
+    label: "Slow-Moving SKU Count"
+    description: |
+      Count of distinct SKUs with no net sales in trailing 60 days, as of
+      snapshot_date. NON-ADDITIVE across time — use max snapshot_date. Each
+      slow-moving SKU represents working capital tied up in dead stock.
+      Threshold: 60 days default, configurable via vars.slow_mover_days.
+      Slice by category and location to identify dead-stock concentration.
+      Financial impact view: SUM(inventory_value WHERE is_slow_mover = TRUE).
+      See §5.6 KPI 25.
+    type: simple
+    type_params:
+      measure: sku_count_slow_moving
+    meta:
+      owner: merchandising
+      module: inventory_health
+      tier: pro
+      kpi_id: inventory.slow_moving_sku_count
+      catalog_section: "5.6 KPI 25"
+      additivity: non_additive
+      non_additive_dimension:
+        name: snapshot_date
+        window_choice: max
+      threshold_days: 60
+      threshold_var: "vars.slow_mover_days"

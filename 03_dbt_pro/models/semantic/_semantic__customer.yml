@@ -1,0 +1,420 @@
+version: 2
+
+# Customer 360 semantic models and metrics — KPIs 10–19.
+# Per §7.7 design patterns.
+# KPIs 12, 13, 14 reference the 'orders' semantic model from _semantic__sales.yml —
+# MetricFlow resolves cross-file measure references within the same dbt project.
+# KPIs 16, 17, 18 also reference marketing_spend and orders from the sales module.
+# KPI 16 references mart_pro_customer_behavior (pre-computed avg gap; window functions
+# are not natively computable in MetricFlow measures).
+
+semantic_models:
+
+  # ─────────────────────────────────────────────────────────────────────
+  # fact_customer_state_daily — daily customer state snapshot
+  # ─────────────────────────────────────────────────────────────────────
+  - name: customer_state
+    description: |
+      Daily snapshot of each customer's activity and lifetime state. Primary source
+      for active customer KPIs (10, 11) and LTV (15). NON-ADDITIVE across time —
+      the semantic layer enforces point-in-time aggregation via non_additive_dimension.
+      See §4.25 for fact_customer_state_daily specification.
+    model: ref('fact_customer_state_daily')
+    defaults:
+      agg_time_dimension: snapshot_date
+
+    entities:
+      - name: customer_state_record
+        type: natural
+        expr: customer_state_sk
+      - name: customer
+        type: primary
+        expr: customer_id
+
+    measures:
+      - name: customer_count_active_30d
+        description: Customers active in trailing 30 days as of snapshot_date.
+        agg: count_distinct
+        expr: "CASE WHEN is_active_30d THEN customer_id END"
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+          window_groupings:
+            - customer_id
+      - name: customer_count_active_90d
+        description: Customers active in trailing 90 days as of snapshot_date.
+        agg: count_distinct
+        expr: "CASE WHEN is_active_90d THEN customer_id END"
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+          window_groupings:
+            - customer_id
+      - name: avg_lifetime_revenue
+        description: Average lifetime revenue per tracked customer.
+        agg: average
+        expr: lifetime_revenue
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+      - name: lifetime_revenue_total
+        description: Sum of lifetime revenue across all tracked customers.
+        agg: sum
+        expr: lifetime_revenue
+      - name: customer_count_total
+        description: Total distinct customers in the snapshot.
+        agg: count_distinct
+        expr: customer_id
+
+    dimensions:
+      - name: snapshot_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: snapshot_date
+      - name: is_active_30d
+        type: categorical
+        expr: is_active_30d
+      - name: is_active_90d
+        type: categorical
+        expr: is_active_90d
+      - name: is_new_30d
+        type: categorical
+        expr: is_new_30d
+      - name: is_repeat_customer
+        type: categorical
+        expr: is_repeat_customer
+
+  # ─────────────────────────────────────────────────────────────────────
+  # fact_email_engagement — Klaviyo event grain
+  # ─────────────────────────────────────────────────────────────────────
+  - name: email_engagement
+    description: |
+      One row per Klaviyo engagement event (delivered, opened, clicked, bounced,
+      unsubscribed, spam_reported). Source for KPI 19 (Email Engagement Rate).
+      See §4.24 for fact_email_engagement specification.
+    model: ref('fact_email_engagement')
+    defaults:
+      agg_time_dimension: event_date
+
+    entities:
+      - name: email_event
+        type: primary
+        expr: event_id
+      - name: customer
+        type: foreign
+        expr: customer_sk
+      - name: email_campaign
+        type: foreign
+        expr: email_campaign_sk
+
+    measures:
+      - name: delivered_count
+        description: Count of delivered events.
+        agg: count
+        expr: "CASE WHEN event_type = 'delivered' THEN 1 END"
+      - name: opened_count
+        description: Count of opened events (note Apple MPP inflation).
+        agg: count
+        expr: "CASE WHEN event_type = 'opened' THEN 1 END"
+      - name: clicked_count
+        description: Count of clicked (link click) events.
+        agg: count
+        expr: "CASE WHEN event_type = 'clicked' THEN 1 END"
+      - name: engagement_count
+        description: Opens + clicks combined (KPI 19 numerator).
+        agg: count
+        expr: "CASE WHEN event_type IN ('opened', 'clicked') THEN 1 END"
+      - name: bounced_count
+        description: Count of bounced events.
+        agg: count
+        expr: "CASE WHEN event_type = 'bounced' THEN 1 END"
+      - name: unsubscribed_count
+        description: Count of unsubscribe events.
+        agg: count
+        expr: "CASE WHEN event_type = 'unsubscribed' THEN 1 END"
+
+    dimensions:
+      - name: event_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: event_date
+      - name: event_type
+        type: categorical
+        expr: event_type
+      - name: device_type
+        type: categorical
+        expr: device_type
+
+  # ─────────────────────────────────────────────────────────────────────
+  # mart_pro_customer_behavior — pre-computed avg inter-order gap
+  # References mart because MetricFlow cannot compute window functions (LAG)
+  # natively in measure expressions. Pre-computation in the mart is the
+  # approved pattern for KPI 16 in v1.
+  # ─────────────────────────────────────────────────────────────────────
+  - name: pro_customer_behavior
+    description: |
+      Pre-aggregated customer behavior mart at (date × channel) grain.
+      Provides avg_days_between_orders for KPI 16 (window function not
+      computable in MetricFlow measures). Also surfaces spend, new_customers,
+      and net_revenue for KPI 17/18 cross-checks. See mart_pro_customer_behavior.
+    model: ref('mart_pro_customer_behavior')
+    defaults:
+      agg_time_dimension: date
+
+    entities:
+      - name: behavior_record
+        type: natural
+        expr: mart_pro_behavior_sk
+      - name: channel
+        type: foreign
+        expr: channel_sk
+
+    measures:
+      - name: avg_order_gap_days
+        description: |
+          Average calendar days between consecutive orders for repeat orders on
+          this date/channel. Averaged across dates at query time. See §5.5 KPI 16.
+        agg: average
+        expr: avg_days_between_orders
+
+    dimensions:
+      - name: date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: date
+
+# ─────────────────────────────────────────────────────────────────────────
+# Customer 360 metrics — KPIs 10–19
+# ─────────────────────────────────────────────────────────────────────────
+
+metrics:
+
+  # KPI 10 — Active Customers 30-day (OSS)
+  - name: active_customers_30d
+    label: "Active Customers (30-day)"
+    description: |
+      Distinct customers with at least one completed order in trailing 30 days,
+      as of snapshot_date. NON-ADDITIVE across time — never sum daily values.
+      Use the maximum snapshot_date in the period to read this metric.
+      See §5.5 KPI 10.
+    type: simple
+    type_params:
+      measure: customer_count_active_30d
+    meta:
+      owner: growth
+      module: customer_360
+      tier: oss
+      kpi_id: customer.active_customers_30d
+      catalog_section: "5.5 KPI 10"
+      additivity: non_additive
+      non_additive_dimension:
+        name: snapshot_date
+        window_choice: max
+        window_groupings:
+          - customer_id
+
+  # KPI 11 — Active Customers 90-day (OSS)
+  - name: active_customers_90d
+    label: "Active Customers (90-day)"
+    description: |
+      Distinct customers with at least one completed order in trailing 90 days,
+      as of snapshot_date. NON-ADDITIVE across time. Useful for longer purchase-cycle
+      industries. active_customers_90d >= active_customers_30d always. See §5.5 KPI 11.
+    type: simple
+    type_params:
+      measure: customer_count_active_90d
+    meta:
+      owner: growth
+      module: customer_360
+      tier: oss
+      kpi_id: customer.active_customers_90d
+      catalog_section: "5.5 KPI 11"
+      additivity: non_additive
+      non_additive_dimension:
+        name: snapshot_date
+        window_choice: max
+        window_groupings:
+          - customer_id
+
+  # KPI 12 — New Customers (OSS)
+  # References 'orders' semantic model from _semantic__sales.yml
+  - name: new_customers
+    label: "New Customers"
+    description: |
+      Distinct customers whose first completed order falls in the period.
+      Additive across time (unlike active customers). Slice by acquisition channel
+      and geography for cohort analysis. See §5.5 KPI 12.
+    type: simple
+    type_params:
+      measure: new_customer_count
+    filter: |
+      {{ Dimension('order__order_status') }} != 'cancelled'
+      AND NOT {{ Dimension('order__is_test_order') }}
+    meta:
+      owner: growth
+      module: customer_360
+      tier: oss
+      kpi_id: customer.new_customers
+      catalog_section: "5.5 KPI 12"
+
+  # KPI 13 — Repeat Customer Count (OSS)
+  # References 'orders' semantic model from _semantic__sales.yml
+  - name: repeat_customer_count
+    label: "Repeat Customer Count"
+    description: |
+      Distinct customers who placed a repeat order (had at least one prior order
+      before the current period) within the period. A customer placing their 2nd
+      and 3rd order in the same month is counted once. See §5.5 KPI 13.
+    type: simple
+    type_params:
+      measure: repeat_customer_count
+    filter: |
+      {{ Dimension('order__order_status') }} != 'cancelled'
+      AND NOT {{ Dimension('order__is_test_order') }}
+    meta:
+      owner: growth
+      module: customer_360
+      tier: oss
+      kpi_id: customer.repeat_customer_count
+      catalog_section: "5.5 KPI 13"
+
+  # KPI 14 — Repeat Purchase Rate (OSS)
+  - name: repeat_purchase_rate
+    label: "Repeat Purchase Rate"
+    description: |
+      Repeat customers as a share of all purchasing customers in the period.
+      Denominator is customers_who_purchased = new + repeat (not lifetime base).
+      Period-based definition; actionable for marketing campaigns. See §5.5 KPI 14.
+    type: ratio
+    type_params:
+      numerator: repeat_customer_count
+      denominator:
+        name: unique_customer_count
+    meta:
+      owner: growth
+      module: customer_360
+      tier: oss
+      kpi_id: customer.repeat_purchase_rate
+      catalog_section: "5.5 KPI 14"
+
+  # KPI 15 — Customer Lifetime Value, basic (Pro)
+  - name: lifetime_value
+    label: "Customer Lifetime Value (LTV)"
+    description: |
+      Average lifetime revenue (net_after_refunds) per tracked customer as of
+      snapshot_date. LTV-to-date, not predictive. NON-ADDITIVE across time.
+      Most useful when sliced by acquisition cohort to compare cohort trajectories.
+      Predictive LTV is a v2 Pro module. See §5.5 KPI 15.
+    type: simple
+    type_params:
+      measure: avg_lifetime_revenue
+    meta:
+      owner: growth
+      module: customer_360
+      tier: pro
+      kpi_id: customer.lifetime_value
+      catalog_section: "5.5 KPI 15"
+      additivity: non_additive
+      non_additive_dimension:
+        name: snapshot_date
+        window_choice: max
+
+  # KPI 16 — Average Time Between Orders (Pro)
+  - name: avg_time_between_orders
+    label: "Average Time Between Orders"
+    description: |
+      Average calendar days between consecutive orders for repeat customers.
+      Pre-computed in mart_pro_customer_behavior (LAG window function not
+      computable in MetricFlow measures). Aggregate to weekly/monthly grain —
+      daily values are noisy. Only meaningful for customers with 2+ orders.
+      See §5.5 KPI 16.
+    type: simple
+    type_params:
+      measure: avg_order_gap_days
+    meta:
+      owner: growth
+      module: customer_360
+      tier: pro
+      kpi_id: customer.avg_time_between_orders
+      catalog_section: "5.5 KPI 16"
+      grain_exclusions: [daily]
+      computation_note: "Pre-computed via mart_pro_customer_behavior; window function not supported in MetricFlow measures."
+
+  # KPI 17 — Customer Acquisition Cost by Channel (Pro)
+  # Numerator: spend_amount from marketing_spend semantic model (sales module)
+  # Denominator: new_customer_count from orders semantic model (sales module)
+  # Join path: both share the 'channel' entity (channel_sk)
+  - name: cac_by_channel
+    label: "Customer Acquisition Cost by Channel"
+    description: |
+      Marketing spend divided by attributed new customers, per channel.
+      Uses last-touch attribution in v1 (channel on first order = acquisition channel).
+      CAC for organic channels = 0/NULL (no spend denominator). Paid channels only
+      have spend data for paid_social_meta in v1. See §5.5 KPI 17.
+    type: ratio
+    type_params:
+      numerator:
+        name: spend_amount
+      denominator:
+        name: new_customer_count
+    meta:
+      owner: marketing
+      module: customer_360
+      tier: pro
+      kpi_id: customer.cac_by_channel
+      catalog_section: "5.5 KPI 17"
+      attribution_method: last_touch
+      required_dimensions: [channel]
+      grain_exclusions: [daily]
+
+  # KPI 18 — Return on Ad Spend by Channel (Pro)
+  # Numerator: net_revenue_amount from orders semantic model
+  # Denominator: spend_amount from marketing_spend semantic model
+  # Join path: both share the 'channel' entity
+  - name: roas_by_channel
+    label: "Return on Ad Spend by Channel"
+    description: |
+      Warehouse-attributed ROAS: net revenue attributed to a channel divided by
+      ad spend on that channel. NOT the platform-reported ROAS (typically 2-4x
+      higher due to attribution windows). Last-touch attribution in v1.
+      Paid_social_meta is the only channel with spend data in v1. See §5.5 KPI 18.
+    type: ratio
+    type_params:
+      numerator:
+        name: net_revenue_amount
+      denominator:
+        name: spend_amount
+    meta:
+      owner: marketing
+      module: customer_360
+      tier: pro
+      kpi_id: customer.roas_by_channel
+      catalog_section: "5.5 KPI 18"
+      attribution_method: last_touch
+      required_dimensions: [channel]
+      grain_exclusions: [daily]
+
+  # KPI 19 — Email Engagement Rate (Pro)
+  - name: email_engagement_rate
+    label: "Email Engagement Rate"
+    description: |
+      (Opens + Clicks) / Delivered × 100. Engagement = any active interaction.
+      Apple Mail Privacy Protection auto-opens inflate opened_count by ~30-50%.
+      Documented in domain_knowledge.yml; not adjusted in this metric.
+      Slice by email_campaign and campaign_type. See §5.5 KPI 19.
+    type: ratio
+    type_params:
+      numerator:
+        name: engagement_count
+      denominator:
+        name: delivered_count
+    meta:
+      owner: marketing
+      module: customer_360
+      tier: pro
+      kpi_id: customer.email_engagement_rate
+      catalog_section: "5.5 KPI 19"
+      apple_mpp_caveat: true

@@ -1,0 +1,466 @@
+version: 2
+
+# Sales Analytics semantic models and metrics — KPIs 1–9.
+# Per §7.6 design patterns. All Sales metrics exclude cancelled orders and test orders.
+# Tier tags: oss = open-source (14 KPIs total), pro = proprietary (11 KPIs total).
+#
+# Cancelled-order filter applied per-metric via MetricFlow filter block:
+#   {{ Dimension('order__order_status') }} != 'cancelled' AND NOT {{ Dimension('order__is_test_order') }}
+
+semantic_models:
+
+  # ─────────────────────────────────────────────────────────────────────
+  # fact_orders — order header grain
+  # ─────────────────────────────────────────────────────────────────────
+  - name: orders
+    description: |
+      Order header grain. One row per Shopify order. Primary source for GMV,
+      net revenue, order count, tax, and customer acquisition metrics.
+      See §4.19 for fact_orders specification.
+    model: ref('fact_orders')
+    defaults:
+      agg_time_dimension: order_date
+
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+      - name: channel
+        type: foreign
+        expr: channel_sk
+      - name: geography
+        type: foreign
+        expr: geography_sk
+      - name: payment_method
+        type: foreign
+        expr: payment_method_sk
+
+    measures:
+      - name: gross_amount
+        description: Order value before discounts and refunds, in reporting currency.
+        agg: sum
+        expr: gross_amount
+      - name: discount_amount
+        description: Total discount applied at order level.
+        agg: sum
+        expr: discount_amount
+      - name: refunded_amount
+        description: Total amount refunded against this order.
+        agg: sum
+        expr: refunded_amount
+      - name: net_revenue_amount
+        description: Revenue after discounts and refunds (gross_amount - discount_amount - refunded_amount).
+        agg: sum
+        expr: gross_amount - discount_amount - refunded_amount
+      - name: tax_amount
+        description: Total tax collected on the order.
+        agg: sum
+        expr: tax_amount
+      - name: shipping_amount
+        description: Shipping charges collected.
+        agg: sum
+        expr: shipping_amount
+      - name: order_count
+        description: Count of distinct orders.
+        agg: count_distinct
+        expr: order_id
+      - name: new_customer_count
+        description: Distinct customers placing their first order.
+        agg: count_distinct
+        expr: "CASE WHEN is_first_order THEN customer_id END"
+      - name: repeat_customer_count
+        description: Distinct customers placing a repeat order in the period.
+        agg: count_distinct
+        expr: "CASE WHEN is_repeat_order THEN customer_id END"
+      - name: unique_customer_count
+        description: Distinct customers placing any order in the period.
+        agg: count_distinct
+        expr: customer_id
+
+    dimensions:
+      - name: order_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: order_date
+      - name: order_status
+        type: categorical
+        expr: order_status
+      - name: financial_status
+        type: categorical
+        expr: financial_status
+      - name: fulfillment_status
+        type: categorical
+        expr: fulfillment_status
+      - name: is_first_order
+        type: categorical
+        expr: is_first_order
+      - name: is_repeat_order
+        type: categorical
+        expr: is_repeat_order
+      - name: is_test_order
+        type: categorical
+        expr: is_test_order
+      - name: is_subscription_order
+        type: categorical
+        expr: is_subscription_order
+      - name: device_category
+        type: categorical
+        expr: device_category
+
+  # ─────────────────────────────────────────────────────────────────────
+  # fact_order_lines — line item grain
+  # ─────────────────────────────────────────────────────────────────────
+  - name: order_lines
+    description: |
+      Order line item grain. One row per line item per order. Source for
+      return rate (KPI 7), COGS, and product-level revenue analytics.
+      See §4.20 for fact_order_lines specification.
+    model: ref('fact_order_lines')
+    defaults:
+      agg_time_dimension: order_date
+
+    entities:
+      - name: order_line
+        type: primary
+        expr: line_item_id
+      - name: order
+        type: foreign
+        expr: order_id
+      - name: product
+        type: foreign
+        expr: product_sk
+      - name: customer
+        type: foreign
+        expr: customer_sk
+      - name: channel
+        type: foreign
+        expr: channel_sk
+
+    measures:
+      - name: quantity
+        description: Units ordered.
+        agg: sum
+        expr: quantity
+      - name: refunded_quantity
+        description: Units returned / refunded.
+        agg: sum
+        expr: refunded_quantity
+      - name: line_net_amount
+        description: Net line revenue after discounts, in reporting currency.
+        agg: sum
+        expr: line_net_amount
+      - name: line_gross_margin
+        description: Gross margin at line level. NULL when unit_cost not tracked.
+        agg: sum
+        expr: line_gross_margin
+
+    dimensions:
+      - name: order_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: order_date
+      - name: is_returned
+        type: categorical
+        expr: is_returned
+      - name: was_promotional
+        type: categorical
+        expr: was_promotional
+      - name: sku
+        type: categorical
+        expr: sku
+
+  # ─────────────────────────────────────────────────────────────────────
+  # fact_refunds — refund event grain
+  # ─────────────────────────────────────────────────────────────────────
+  - name: refunds
+    description: |
+      Refund event grain. One row per refund. Refund amounts are attributed
+      to refund_date, not order_date — per §5.4 KPI 6 attribution rule.
+      See §4.21 for fact_refunds specification.
+    model: ref('fact_refunds')
+    defaults:
+      agg_time_dimension: refund_date
+
+    entities:
+      - name: refund
+        type: primary
+        expr: refund_id
+      - name: order
+        type: foreign
+        expr: order_id
+      - name: customer
+        type: foreign
+        expr: customer_sk
+
+    measures:
+      - name: refund_amount
+        description: Total amount refunded, in reporting currency.
+        agg: sum
+        expr: refund_amount
+      - name: refund_shipping_amount
+        description: Shipping portion of the refund.
+        agg: sum
+        expr: refund_shipping_amount
+      - name: refund_count
+        description: Count of distinct refund events.
+        agg: count_distinct
+        expr: refund_id
+
+    dimensions:
+      - name: refund_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: refund_date
+      - name: refund_type
+        type: categorical
+        expr: refund_type
+      - name: refund_category
+        type: categorical
+        expr: refund_category
+      - name: is_chargeback
+        type: categorical
+        expr: is_chargeback
+
+  # ─────────────────────────────────────────────────────────────────────
+  # fact_marketing_spend — campaign × day grain
+  # ─────────────────────────────────────────────────────────────────────
+  - name: marketing_spend
+    description: |
+      Marketing spend at campaign × day grain. Meta Ads (paid_social_meta) only in v1.
+      Used for CAC (KPI 17) and ROAS (KPI 18). See §4.22 for fact_marketing_spend spec.
+    model: ref('fact_marketing_spend')
+    defaults:
+      agg_time_dimension: spend_date
+
+    entities:
+      - name: spend_record
+        type: natural
+        expr: spend_sk
+      - name: campaign
+        type: foreign
+        expr: campaign_sk
+      - name: channel
+        type: foreign
+        expr: channel_sk
+
+    measures:
+      - name: spend_amount
+        description: Ad spend in reporting currency.
+        agg: sum
+        expr: spend_amount
+      - name: impressions
+        description: Total ad impressions.
+        agg: sum
+        expr: impressions
+      - name: clicks
+        description: Total ad clicks.
+        agg: sum
+        expr: clicks
+
+    dimensions:
+      - name: spend_date
+        type: time
+        type_params:
+          time_granularity: day
+        expr: spend_date
+
+# ─────────────────────────────────────────────────────────────────────────
+# Sales Analytics metrics — KPIs 1-9
+# ─────────────────────────────────────────────────────────────────────────
+
+metrics:
+
+  # KPI 1 — Gross Merchandise Value (OSS)
+  - name: gmv
+    label: "Gross Merchandise Value"
+    description: |
+      Total order value before refunds, in reporting currency. Excludes cancelled
+      and test orders. Discounts ARE deducted (gross_amount is post-discount).
+      Tax and shipping are excluded. NON-REFUND-ADJUSTED — see net_revenue for
+      the revenue figure. See §5.4 KPI 1.
+    type: simple
+    type_params:
+      measure: gross_amount
+    filter: |
+      {{ Dimension('order__order_status') }} != 'cancelled'
+      AND NOT {{ Dimension('order__is_test_order') }}
+    meta:
+      owner: finance
+      module: sales_analytics
+      tier: oss
+      kpi_id: sales.gmv
+      catalog_section: "5.4 KPI 1"
+
+  # KPI 2 — Net Revenue (OSS)
+  - name: net_revenue
+    label: "Net Revenue"
+    description: |
+      Revenue retained after discounts and refunds. Excludes tax (a liability)
+      and shipping (pass-through). The metric reported to investors and the
+      denominator for most retail efficiency ratios. See §5.4 KPI 2.
+    type: simple
+    type_params:
+      measure: net_revenue_amount
+    filter: |
+      {{ Dimension('order__order_status') }} != 'cancelled'
+      AND NOT {{ Dimension('order__is_test_order') }}
+    meta:
+      owner: finance
+      module: sales_analytics
+      tier: oss
+      kpi_id: sales.net_revenue
+      catalog_section: "5.4 KPI 2"
+
+  # KPI 3 — Order Count (OSS)
+  - name: order_count
+    label: "Order Count"
+    description: |
+      Distinct completed orders. Excludes cancelled and test orders. Refunded orders
+      are still counted — refunding does not un-place an order. See §5.4 KPI 3.
+    type: simple
+    type_params:
+      measure: order_count
+    filter: |
+      {{ Dimension('order__order_status') }} != 'cancelled'
+      AND NOT {{ Dimension('order__is_test_order') }}
+    meta:
+      owner: operations
+      module: sales_analytics
+      tier: oss
+      kpi_id: sales.order_count
+      catalog_section: "5.4 KPI 3"
+
+  # KPI 4 — Average Order Value (OSS)
+  - name: average_order_value
+    label: "Average Order Value (AOV)"
+    description: |
+      Net revenue divided by order count. Slicing by any dimension correctly
+      recomputes AOV for that slice — do not average individual order amounts
+      (that produces a different, typically lower, number). See §5.4 KPI 4.
+    type: ratio
+    type_params:
+      numerator: net_revenue
+      denominator: order_count
+    meta:
+      owner: marketing
+      module: sales_analytics
+      tier: oss
+      kpi_id: sales.average_order_value
+      catalog_section: "5.4 KPI 4"
+
+  # KPI 5 — Revenue Growth % (OSS)
+  - name: revenue_growth_pct
+    label: "Revenue Growth %"
+    description: |
+      Period-over-period net revenue change as a percentage. Default comparison:
+      current period vs. prior period. NULL when prior period revenue is zero.
+      Not meaningful at daily grain — use weekly or monthly minimum.
+      See §5.4 KPI 5.
+    type: derived
+    type_params:
+      expr: |
+        CASE
+          WHEN net_revenue_prior IS NULL OR net_revenue_prior = 0 THEN NULL
+          ELSE (net_revenue - net_revenue_prior) / net_revenue_prior * 100
+        END
+      metrics:
+        - name: net_revenue
+        - name: net_revenue
+          alias: net_revenue_prior
+          offset_window: 1 month
+    meta:
+      owner: finance
+      module: sales_analytics
+      tier: oss
+      kpi_id: sales.revenue_growth_pct
+      catalog_section: "5.4 KPI 5"
+      grain_exclusions: [daily]
+
+  # KPI 6 — Refund Rate (Pro)
+  - name: refund_rate
+    label: "Refund Rate"
+    description: |
+      Percentage of GMV refunded. Refunds attributed to refund_date, not order_date
+      — refunds in March against February orders are attributed to March.
+      Compute at weekly/monthly grain; daily is too noisy. See §5.4 KPI 6.
+    type: ratio
+    type_params:
+      numerator:
+        name: refund_amount
+      denominator:
+        name: gross_amount
+    meta:
+      owner: operations
+      module: sales_analytics
+      tier: pro
+      kpi_id: sales.refund_rate
+      catalog_section: "5.4 KPI 6"
+      grain_exclusions: [daily]
+
+  # KPI 7 — Return Rate (Pro)
+  - name: return_rate
+    label: "Return Rate"
+    description: |
+      Percentage of units returned. Unit-based (not revenue-based) — for revenue
+      impact use refund_rate. Most actionable when sliced by product category to
+      identify quality or sizing issues. See §5.4 KPI 7.
+    type: ratio
+    type_params:
+      numerator:
+        name: refunded_quantity
+      denominator:
+        name: quantity
+    meta:
+      owner: operations
+      module: sales_analytics
+      tier: pro
+      kpi_id: sales.return_rate
+      catalog_section: "5.4 KPI 7"
+      grain_exclusions: [daily]
+
+  # KPI 8 — Revenue by Channel (Pro)
+  - name: revenue_by_channel
+    label: "Revenue by Channel"
+    description: |
+      Net revenue grouped by acquisition channel. Uses the proprietary channel
+      hierarchy (online → marketplace → social → search). Slice by channel_name
+      or channel_category dimension at query time. See §5.4 KPI 8.
+    type: simple
+    type_params:
+      measure: net_revenue_amount
+    filter: |
+      {{ Dimension('order__order_status') }} != 'cancelled'
+      AND NOT {{ Dimension('order__is_test_order') }}
+    meta:
+      owner: marketing
+      module: sales_analytics
+      tier: pro
+      kpi_id: sales.revenue_by_channel
+      catalog_section: "5.4 KPI 8"
+      required_dimensions: [channel]
+
+  # KPI 9 — Tax Collected (OSS)
+  - name: tax_collected
+    label: "Tax Collected"
+    description: |
+      Total tax on non-cancelled orders. Refunded tax is NOT subtracted —
+      for net tax filing use: tax_collected - sum(refund_tax_amount).
+      Slice by geography (country_code) for tax filing purposes. See §5.4 KPI 9.
+    type: simple
+    type_params:
+      measure: tax_amount
+    filter: |
+      {{ Dimension('order__order_status') }} != 'cancelled'
+      AND NOT {{ Dimension('order__is_test_order') }}
+    meta:
+      owner: finance
+      module: sales_analytics
+      tier: oss
+      kpi_id: sales.tax_collected
+      catalog_section: "5.4 KPI 9"

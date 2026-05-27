@@ -1,0 +1,219 @@
+# Domain knowledge for AI-assisted analytics.
+# Per §7.13: consumed by the Spark AI assistant to provide context, explain
+# anomalies, and caveat metric values with relevant industry or product knowledge.
+#
+# When the AI detects an unusual metric value (e.g., a spike in ROAS, a drop in
+# email engagement), it can check domain_facts and surface a relevant explanation.
+#
+# Categories:
+#   anomaly_explanation  — explains why a metric value might look unusual
+#   metric_caveat        — important limitation or interpretation note
+#   contextualization    — industry benchmarks, seasonal patterns, best practices
+#   data_quality         — known data issues or collection limitations
+#
+# Fields:
+#   fact             — the domain knowledge statement
+#   relevance        — high | medium | low
+#   used_for         — category (see above)
+#   affects_metrics  — list of metric IDs affected (omit if broadly applicable)
+#   source           — where this knowledge comes from (optional)
+#   since_date       — when this became relevant (optional; YYYY-MM-DD)
+
+domain_facts:
+
+  # ─── Seasonality and calendar events ──────────────────────────────────────────
+
+  - fact: "Black Friday and Cyber Monday are typically the highest-revenue days of the year for D2C retail, often representing 20–40% of November GMV on those two days alone."
+    relevance: high
+    used_for: anomaly_explanation
+    affects_metrics:
+      - gmv
+      - net_revenue
+      - order_count
+      - new_customers
+      - active_customers_30d
+
+  - fact: "Cyber Monday (the Monday after US Thanksgiving) often outperforms Black Friday for online-only D2C brands, especially in fashion and electronics."
+    relevance: high
+    used_for: anomaly_explanation
+    affects_metrics:
+      - gmv
+      - order_count
+      - average_order_value
+
+  - fact: "January typically sees elevated return and refund rates following the holiday gift season. A spike in refund_rate in January is expected behavior, not a data or product quality issue."
+    relevance: high
+    used_for: anomaly_explanation
+    affects_metrics:
+      - refund_rate
+      - return_rate
+
+  - fact: "Email unsubscribe and spam complaint rates typically spike immediately after Black Friday and Cyber Monday promotional sends. Engagement rate may temporarily drop in late November and early December as fatigued subscribers disengage."
+    relevance: medium
+    used_for: anomaly_explanation
+    affects_metrics:
+      - email_engagement_rate
+
+  - fact: "D2C revenue tends to follow a calendar pattern: slow January–February, moderate March–May, slower summer (June–August for most categories), holiday ramp September–November, peak late November, then drop in late December."
+    relevance: medium
+    used_for: contextualization
+    affects_metrics:
+      - net_revenue
+      - gmv
+      - revenue_growth_pct
+
+  - fact: "New customer acquisition typically peaks during promotional periods (BFCM, Valentine's Day, Mother's Day) and is lowest in January–February. Comparing new_customers MoM without seasonal adjustment is misleading."
+    relevance: medium
+    used_for: contextualization
+    affects_metrics:
+      - new_customers
+      - cac_by_channel
+
+  # ─── Attribution and advertising platform caveats ─────────────────────────────
+
+  - fact: "Meta's platform-reported ROAS is typically 2–4× higher than warehouse-attributed ROAS. This is because Meta counts conversions within a 7-day click / 1-day view attribution window, which overlaps with organic conversions and other channels."
+    relevance: high
+    used_for: metric_caveat
+    affects_metrics:
+      - roas_by_channel
+    source: "Meta Ads Manager attribution documentation; industry benchmarking"
+
+  - fact: "When a user reports that 'our ROAS on Meta is 8x,' they are almost certainly quoting Meta's platform-reported number. The warehouse-attributed ROAS (what this pack reports) will typically be 2–4x lower. Both numbers are correct for different purposes."
+    relevance: high
+    used_for: metric_caveat
+    affects_metrics:
+      - roas_by_channel
+
+  - fact: "Last-touch attribution (the v1 default for CAC and ROAS) over-credits direct and branded search channels, which capture the final touchpoint of a multi-touch customer journey that began with paid social or content."
+    relevance: medium
+    used_for: metric_caveat
+    affects_metrics:
+      - cac_by_channel
+      - roas_by_channel
+
+  - fact: "In v1, marketing spend data is only available for paid_social_meta (Meta Ads). CAC and ROAS for Google, TikTok, and other channels will show NULL spend and cannot be computed until those connectors are enabled."
+    relevance: high
+    used_for: data_quality
+    affects_metrics:
+      - cac_by_channel
+      - roas_by_channel
+
+  # ─── Email: Apple Mail Privacy Protection ─────────────────────────────────────
+
+  - fact: "Apple Mail Privacy Protection (MPP), introduced in iOS 15 / macOS Monterey (September 2021), pre-loads email content including tracking pixels on Apple devices, even when the user never opens the email. This inflates open_count by approximately 30–50% for audiences with significant Apple device penetration."
+    relevance: high
+    used_for: metric_caveat
+    affects_metrics:
+      - email_engagement_rate
+    source: "Apple developer documentation; Litmus 2022 Email Client Market Share report"
+    since_date: "2021-09-20"
+
+  - fact: "Because of Apple MPP inflation, click rate (clicks ÷ delivered) is a more reliable engagement signal than open rate. When analyzing email_engagement_rate, consider also examining clicked_count ÷ delivered_count separately."
+    relevance: high
+    used_for: metric_caveat
+    affects_metrics:
+      - email_engagement_rate
+
+  - fact: "Brands with audiences primarily on Gmail or Outlook are less affected by Apple MPP (those platforms do not pre-load tracking pixels). Apple-heavy audiences (e.g., premium lifestyle, fashion, consumer tech) are most affected."
+    relevance: medium
+    used_for: contextualization
+    affects_metrics:
+      - email_engagement_rate
+
+  # ─── Customer metrics: additivity warnings ────────────────────────────────────
+
+  - fact: "Active customer counts (30-day and 90-day) are non-additive across time. Summing daily active_customers_30d values to get a 'monthly total' would massively over-count, because the same customer appears in every day's snapshot. The correct interpretation is: what is the active customer count AS OF a specific date?"
+    relevance: high
+    used_for: metric_caveat
+    affects_metrics:
+      - active_customers_30d
+      - active_customers_90d
+
+  - fact: "A customer who places their 2nd and 3rd order in the same month appears ONCE in repeat_customer_count for that month, not twice. This is consistent with how new_customers is counted (once per first order)."
+    relevance: medium
+    used_for: metric_caveat
+    affects_metrics:
+      - repeat_customer_count
+      - repeat_purchase_rate
+
+  - fact: "LTV-to-date (the lifetime_value metric) will always increase over time for active customers and will never decrease unless refunds or data corrections are applied. Comparing LTV across cohorts of different ages requires controlling for cohort age."
+    relevance: high
+    used_for: contextualization
+    affects_metrics:
+      - lifetime_value
+
+  # ─── Inventory: benchmarks and thresholds ─────────────────────────────────────
+
+  - fact: "Industry benchmark for inventory turnover in D2C retail is 4–8 turns per year. Fashion and apparel trend toward the high end (6–10×); durable goods and furniture toward the low end (2–4×). Below 4 turns typically signals overstock; above 12 turns may signal understocking."
+    relevance: medium
+    used_for: contextualization
+    affects_metrics:
+      - inventory_turnover
+
+  - fact: "Days of supply < 14 is the widely used threshold for 'reorder alert' in retail replenishment systems. SKUs below this threshold should be flagged for urgent replenishment review. The threshold may vary by lead time — products with 30+ day supplier lead times need a higher threshold."
+    relevance: high
+    used_for: contextualization
+    affects_metrics:
+      - days_of_supply
+
+  - fact: "Sell-through rates of 60–80% within 60 days are considered healthy for most fashion and seasonal categories. Below 40% at 60 days is a markdown risk signal. Above 90% may indicate understocking (missed sales opportunity)."
+    relevance: medium
+    used_for: contextualization
+    affects_metrics:
+      - sell_through_rate
+
+  - fact: "Slow-moving SKUs (no sales in trailing 60 days) represent dead working capital. The financial impact can be estimated as: SUM(inventory_value WHERE is_slow_mover = TRUE). A high slow-mover count combined with high total_inventory_value is a strong signal for a promotional clearance event."
+    relevance: medium
+    used_for: contextualization
+    affects_metrics:
+      - slow_moving_sku_count
+      - total_inventory_value
+
+  - fact: "Inventory value is at COST (unit_cost × quantity_on_hand), not at retail price. Retail value is approximately 2–3× cost for typical fashion brands (50–65% gross margin). If a user asks for 'how much the inventory is worth,' clarify: at cost or at retail?"
+    relevance: medium
+    used_for: metric_caveat
+    affects_metrics:
+      - total_inventory_value
+
+  # ─── General retail analytics best practices ──────────────────────────────────
+
+  - fact: "Revenue growth % is not meaningful at daily grain — day-over-day fluctuations are dominated by day-of-week effects (weekends often have different conversion rates) and single large orders, not genuine trends. Use weekly or monthly grain minimum."
+    relevance: high
+    used_for: metric_caveat
+    affects_metrics:
+      - revenue_growth_pct
+
+  - fact: "Refund rate should be interpreted alongside return rate — a high refund rate without a high return rate may indicate fraudulent chargebacks or digital goods refunds (not physical returns). A high return rate with low refund rate is unusual and may indicate data quality issues."
+    relevance: medium
+    used_for: contextualization
+    affects_metrics:
+      - refund_rate
+      - return_rate
+
+  - fact: "Average Order Value (AOV) is computed as total revenue ÷ total orders (macro-average). Averaging individual order amounts (micro-average) produces a different, typically lower number because it weights every order equally regardless of value. Always verify which calculation a stakeholder expects."
+    relevance: medium
+    used_for: metric_caveat
+    affects_metrics:
+      - average_order_value
+
+  # ─── Data quality and collection limits ───────────────────────────────────────
+
+  - fact: "unit_cost data may be NULL for products where the merchant has not populated cost in Shopify. This causes inventory_value, cogs_last_30d, and inventory_turnover to be NULL for affected SKUs. Clients should be encouraged to populate unit_cost for all active SKUs."
+    relevance: high
+    used_for: data_quality
+    affects_metrics:
+      - total_inventory_value
+      - inventory_turnover
+      - cogs_last_30d_metric
+
+  - fact: "The sell-through rate in v1 is a proxy calculation (units_sold / (units_sold + quantity_available)), not a true cohort-based rate. It will overstate sell-through for long-tail SKUs with very low velocity, and is not comparable to sell-through rates computed from physical inventory receipts. The true cohort method (tracking a receipt batch over a fixed window) will ship in v2."
+    relevance: high
+    used_for: data_quality
+    affects_metrics:
+      - sell_through_rate
+
+  - fact: "The avg_time_between_orders metric pre-computes LAG window functions in mart_pro_customer_behavior because MetricFlow does not support LAG in measure expressions. The mart is rebuilt daily; trailing windows are relative to current_date()."
+    relevance: low
+    used_for: data_quality
+    affects_metrics:
+      - avg_time_between_orders
