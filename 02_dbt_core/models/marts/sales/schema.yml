@@ -1,0 +1,136 @@
+version: 2
+
+models:
+  - name: mart_sales
+    description: >
+      OSS Sales Analytics mart per Phase 2. One row per (order_date × channel × geography).
+      Implements KPIs 1-3, 9, 12-13 directly; KPIs 4 (AOV), 5 (Revenue Growth %),
+      and 14 (Repeat Purchase Rate) are ratio/derived metrics computed in Power BI
+      from the columns in this mart. Excludes cancelled and test orders.
+    config:
+      materialized: table
+      schema: mart_sales
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [order_date, channel_sk, geography_sk]
+      - dbt_utils.expression_is_true:
+          expression: "gmv >= 0"
+          config:
+            severity: error
+            alias: mart_sales_gmv_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "order_count >= 0"
+          config:
+            severity: error
+            alias: mart_sales_order_count_non_negative
+      - dbt_utils.recency:
+          datepart: day
+          field: order_date
+          interval: 2
+          config:
+            severity: warn
+            alias: mart_sales_recency_2d
+    columns:
+      - name: mart_sales_sk
+        description: Surrogate PK — MD5 of order_date + channel_sk + geography_sk.
+        tests: [not_null, unique]
+      - name: order_date
+        description: Business date of the orders in this row.
+        tests: [not_null]
+      - name: date_sk
+        description: FK to dim_date — YYYYMMDD integer.
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: week_starting_date
+        description: ISO week start (Monday) for this order_date.
+      - name: week_of_year
+        description: ISO week number (1–53).
+      - name: month_number
+        description: Calendar month (1–12).
+      - name: month_name
+        description: Full month name (e.g., "January").
+      - name: month_short_name
+        description: Abbreviated month name (e.g., "Jan").
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+      - name: quarter_name
+        description: Quarter label (e.g., "Q1").
+      - name: year
+        description: Calendar year.
+      - name: is_weekend
+        description: TRUE for Saturday or Sunday.
+      - name: is_business_day
+        description: TRUE for Mon–Fri excluding public holidays.
+      - name: is_holiday
+        description: TRUE if the date is a public holiday in the configured holiday country.
+      - name: is_mtd
+        description: TRUE if order_date falls within the current month-to-date window.
+      - name: is_qtd
+        description: TRUE if order_date falls within the current quarter-to-date window.
+      - name: is_ytd
+        description: TRUE if order_date falls within the current year-to-date window.
+      - name: channel_sk
+        description: FK to dim_channel — acquisition channel at checkout.
+        tests:
+          - relationships:
+              to: ref('dim_channel')
+              field: channel_sk
+      - name: channel_name
+        description: Human-readable channel name (e.g., "organic_search").
+      - name: channel_category
+        description: Channel category from channel_mapping seed.
+      - name: channel_type
+        description: sales, acquisition, or both — derived from channel_category.
+      - name: is_paid
+        description: TRUE for paid acquisition channels.
+      - name: geography_sk
+        description: FK to dim_geography — shipping country.
+        tests:
+          - relationships:
+              to: ref('dim_geography')
+              field: geography_sk
+      - name: country_code
+        description: ISO 3166-1 alpha-2 shipping country code.
+      - name: country_name
+        description: Full country name.
+      - name: country_region
+        description: World region (e.g., "Sub-Saharan Africa").
+      - name: gmv
+        description: "KPI 1: Gross Merchandise Value — SUM(gross_amount), non-cancelled, non-test."
+        tests: [not_null]
+      - name: net_revenue
+        description: "KPI 2: Net Revenue — GMV minus discounts and refunds."
+        tests: [not_null]
+      - name: order_count
+        description: "KPI 3: Count of distinct orders (non-cancelled, non-test)."
+        tests: [not_null]
+      - name: tax_collected
+        description: "KPI 9: Total tax collected on non-cancelled orders."
+        tests: [not_null]
+      - name: new_customers
+        description: "KPI 12: Distinct customers whose first order fell on order_date in this channel/geography."
+        tests: [not_null]
+      - name: repeat_customers
+        description: "KPI 13: Distinct customers with a repeat order (is_repeat_order=TRUE) on order_date."
+        tests: [not_null]
+      - name: unique_customers
+        description: Total distinct customers who placed any non-cancelled order on this date/channel/geography.
+        tests: [not_null]
+      - name: total_discounts
+        description: Sum of all discounts applied to orders in this row.
+        tests: [not_null]
+      - name: shipping_revenue
+        description: Sum of shipping charges collected.
+        tests: [not_null]
+      - name: total_refunds
+        description: Sum of all amounts refunded against orders in this row.
+        tests: [not_null]
+      - name: loaded_at
+        description: Timestamp when this mart was last rebuilt.
+        tests: [not_null]

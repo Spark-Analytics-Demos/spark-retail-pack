@@ -1,0 +1,125 @@
+version: 2
+
+models:
+  - name: mart_inventory
+    description: >
+      OSS Inventory Health mart per Phase 2. One row per (snapshot_date × SKU × location).
+      Implements KPI 20 (Total Inventory Value — SUM at desired grain in Power BI),
+      KPI 22 (Days of Supply — pre-computed per SKU in fact_inventory_snapshot),
+      and KPI 23 (Stockout Rate — aggregate is_out_of_stock flag in Power BI).
+      KPIs 20 and 23 are NON-ADDITIVE across time (point-in-time snapshots).
+      Adds product and location dimension attributes from dim_product and
+      dim_warehouse_location for Power BI slicing. Pro columns (is_low_stock,
+      is_overstock, is_slow_mover) pass through as NULL in OSS per §11.
+    config:
+      materialized: table
+      schema: mart_inventory
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "quantity_available >= -100"
+          config:
+            severity: warn
+            alias: mart_inventory_quantity_reasonable
+      - dbt_utils.expression_is_true:
+          expression: "days_of_supply >= 0 or days_of_supply is null"
+          config:
+            severity: error
+            alias: mart_inventory_days_of_supply_non_negative
+      - dbt_utils.recency:
+          datepart: day
+          field: snapshot_date
+          interval: 1
+          config:
+            severity: warn
+            alias: mart_inventory_recency_1d
+    columns:
+      - name: mart_inventory_sk
+        description: Surrogate PK — inherits inventory_snapshot_sk from fact_inventory_snapshot.
+        tests: [not_null, unique]
+      - name: snapshot_date
+        description: Date of the inventory snapshot.
+        tests: [not_null]
+      - name: date_sk
+        description: FK to dim_date.
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: month_number
+        description: Calendar month (1–12).
+      - name: month_name
+        description: Full month name.
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+      - name: year
+        description: Calendar year.
+      - name: is_mtd
+        description: TRUE if snapshot_date is within the current month-to-date window.
+      - name: is_ytd
+        description: TRUE if snapshot_date is within the current year-to-date window.
+      - name: product_sk
+        description: FK to dim_product.
+        tests:
+          - relationships:
+              to: ref('dim_product')
+              field: product_sk
+      - name: sku
+        description: Degenerate SKU identifier.
+      - name: product_display_name
+        description: "Product title and variant label (e.g., 'Blue Tee - Large')."
+      - name: product_title
+        description: Parent product title.
+      - name: category
+        description: Product category from product_category_mapping seed.
+      - name: subcategory
+        description: Product subcategory from product_category_mapping seed.
+      - name: vendor
+        description: Product vendor / brand.
+      - name: product_is_active
+        description: TRUE if the product variant is currently active in Shopify.
+      - name: location_sk
+        description: FK to dim_warehouse_location.
+        tests:
+          - relationships:
+              to: ref('dim_warehouse_location')
+              field: location_sk
+      - name: location_name
+        description: Shopify location name.
+      - name: location_type
+        description: Location type — warehouse, retail, or third_party.
+      - name: location_country_code
+        description: ISO country code of the location.
+      - name: quantity_available
+        description: Quantity available to sell (Shopify available field).
+      - name: quantity_on_hand
+        description: Physical stock quantity (approximated as quantity_available in v1).
+      - name: quantity_incoming
+        description: Inbound quantity from purchase orders.
+      - name: unit_cost
+        description: Cost per unit in reporting currency. NULL when cost not tracked.
+      - name: inventory_value
+        description: >
+          KPI 20 basis: quantity_on_hand × unit_cost. NULL when unit_cost not tracked.
+          SUM in Power BI at desired grain for Total Inventory Value (KPI 20).
+      - name: days_of_supply
+        description: >
+          KPI 22: quantity_available / avg_daily_units_28d. NULL when no sales in
+          trailing 28 days (slow mover). Pre-computed in fact_inventory_snapshot.
+      - name: is_out_of_stock
+        description: >
+          KPI 23 basis: TRUE when quantity_available <= 0. Aggregate as
+          SUM(is_out_of_stock::int) / COUNT(*) for Stockout Rate (KPI 23).
+        tests: [not_null]
+      - name: is_low_stock
+        description: Pro feature — NULL in OSS (days_of_supply < 14).
+      - name: is_overstock
+        description: Pro feature — NULL in OSS (days_of_supply > 90).
+      - name: is_slow_mover
+        description: Pro feature — NULL in OSS (no sales in trailing 60 days).
+      - name: loaded_at
+        description: Timestamp when this mart was last rebuilt.
+        tests: [not_null]

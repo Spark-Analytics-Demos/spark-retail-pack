@@ -1,0 +1,97 @@
+version: 2
+
+models:
+  - name: mart_customer
+    description: >
+      OSS Customer 360 mart per Phase 2. One row per snapshot_date (daily).
+      Implements KPI 10 (Active Customers 30d) and KPI 11 (Active Customers 90d)
+      from fact_customer_state_daily. Active customer counts are NON-ADDITIVE across
+      time — use a single snapshot_date filter in Power BI, not SUM across dates.
+      KPIs 12-14 (new/repeat customers, repeat purchase rate) are in mart_sales
+      as they are order-flow metrics grouped by order_date.
+    config:
+      materialized: table
+      schema: mart_customer
+    meta:
+      owner: analytics_engineering
+      classification: internal
+      pii_present: false
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "active_customers_30d >= 0"
+          config:
+            severity: error
+            alias: mart_customer_active_30d_non_negative
+      - dbt_utils.expression_is_true:
+          expression: "active_customers_30d <= active_customers_90d"
+          config:
+            severity: warn
+            alias: mart_customer_30d_lte_90d
+      - dbt_utils.recency:
+          datepart: day
+          field: snapshot_date
+          interval: 1
+          config:
+            severity: warn
+            alias: mart_customer_recency_1d
+    columns:
+      - name: mart_customer_sk
+        description: Surrogate PK — MD5 of snapshot_date.
+        tests: [not_null, unique]
+      - name: snapshot_date
+        description: Date of the customer state snapshot.
+        tests: [not_null, unique]
+      - name: date_sk
+        description: FK to dim_date.
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: month_number
+        description: Calendar month (1–12).
+      - name: month_name
+        description: Full month name.
+      - name: quarter_number
+        description: Calendar quarter (1–4).
+      - name: quarter_name
+        description: Quarter label.
+      - name: year
+        description: Calendar year.
+      - name: is_mtd
+        description: TRUE if snapshot_date is within the current month-to-date window.
+      - name: is_qtd
+        description: TRUE if snapshot_date is within the current quarter-to-date window.
+      - name: is_ytd
+        description: TRUE if snapshot_date is within the current year-to-date window.
+      - name: active_customers_30d
+        description: >
+          KPI 10: Count of customers who placed at least one non-cancelled order in
+          the trailing 30 days as of snapshot_date. NON-ADDITIVE across time.
+        tests: [not_null]
+      - name: active_customers_90d
+        description: >
+          KPI 11: Count of customers who placed at least one non-cancelled order in
+          the trailing 90 days as of snapshot_date. NON-ADDITIVE across time.
+        tests: [not_null]
+      - name: total_tracked_customers
+        description: Total active customers tracked in fact_customer_state_daily on this date.
+        tests: [not_null]
+      - name: new_in_30d_window
+        description: Customers acquired within the trailing 30 days as of snapshot_date.
+        tests: [not_null]
+      - name: repeat_customers
+        description: Customers with lifetime_order_count >= 2 as of snapshot_date.
+        tests: [not_null]
+      - name: avg_lifetime_revenue
+        description: Average lifetime revenue (net_after_refunds) across all tracked customers.
+      - name: avg_lifetime_orders
+        description: Average lifetime order count across all tracked customers.
+      - name: total_trailing_30d_revenue
+        description: Sum of revenue from all tracked customers in their trailing 30 days.
+        tests: [not_null]
+      - name: total_trailing_90d_revenue
+        description: Sum of revenue from all tracked customers in their trailing 90 days.
+        tests: [not_null]
+      - name: loaded_at
+        description: Timestamp when this mart was last rebuilt.
+        tests: [not_null]
