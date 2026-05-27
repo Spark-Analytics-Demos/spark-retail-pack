@@ -1,0 +1,273 @@
+# Product catalog for Northwind Co. per §9.3
+# sku_count values are for the Medium/Large tier (2,400 total SKUs).
+# Generator scales down proportionally for Small tier (600 SKUs).
+# cost_margin = COGS / retail_price (e.g. 0.42 means cost is 42% of price)
+
+categories:
+  - category: "Outerwear"
+    subcategory: "Jackets"
+    product_type: "Outerwear"
+    sku_prefix: "OJ"
+    sku_count: 180
+    price_min: 89.00
+    price_max: 320.00
+    cost_margin: 0.42
+    seasonality: "fall_winter"
+    variants:
+      sizes: ["XS", "S", "M", "L", "XL", "XXL"]
+      colors: ["Black", "Navy", "Olive", "Brown", "Camel", "Gray"]
+    adjectives: ["Heritage", "Classic", "Field", "Trail", "Summit", "Urban", "Pacific", "Alpine"]
+
+  - category: "Outerwear"
+    subcategory: "Coats"
+    product_type: "Outerwear"
+    sku_prefix: "OC"
+    sku_count: 90
+    price_min: 180.00
+    price_max: 540.00
+    cost_margin: 0.40
+    seasonality: "fall_winter"
+    variants:
+      sizes: ["XS", "S", "M", "L", "XL", "XXL"]
+      colors: ["Camel", "Charcoal", "Black", "Navy", "Cream"]
+    adjectives: ["Wool", "Cashmere", "Merino", "Oversize", "Tailored", "Belted"]
+
+  - category: "Tops"
+    subcategory: "T-Shirts"
+    product_type: "Tops"
+    sku_prefix: "TT"
+    sku_count: 380
+    price_min: 28.00
+    price_max: 58.00
+    cost_margin: 0.38
+    seasonality: "year_round"
+    variants:
+      sizes: ["XS", "S", "M", "L", "XL", "XXL"]
+      colors: ["White", "Black", "Gray", "Navy", "Sage", "Terracotta", "Sky Blue", "Cream"]
+    adjectives: ["Essential", "Classic", "Organic", "Vintage", "Relaxed", "Boxy", "Slim"]
+
+  - category: "Tops"
+    subcategory: "Sweaters"
+    product_type: "Tops"
+    sku_prefix: "TS"
+    sku_count: 220
+    price_min: 68.00
+    price_max: 148.00
+    cost_margin: 0.41
+    seasonality: "fall_winter"
+    variants:
+      sizes: ["XS", "S", "M", "L", "XL", "XXL"]
+      colors: ["Camel", "Cream", "Charcoal", "Forest", "Burgundy", "Slate"]
+    adjectives: ["Merino", "Lambswool", "Chunky", "Cable-Knit", "Ribbed", "Oversized", "Cropped"]
+
+  - category: "Tops"
+    subcategory: "Shirts"
+    product_type: "Tops"
+    sku_prefix: "TR"
+    sku_count: 180
+    price_min: 48.00
+    price_max: 98.00
+    cost_margin: 0.40
+    seasonality: "year_round"
+    variants:
+      sizes: ["XS", "S", "M", "L", "XL", "XXL"]
+      colors: ["White", "Blue", "Chambray", "Plaid", "Stripe", "Olive"]
+    adjectives: ["Oxford", "Linen", "Flannel", "Chambray", "Western", "Relaxed", "Oversized"]
+
+  - category: "Bottoms"
+    subcategory: "Jeans"
+    product_type: "Bottoms"
+    sku_prefix: "BJ"
+    sku_count: 240
+    price_min: 78.00
+    price_max: 148.00
+    cost_margin: 0.40
+    seasonality: "year_round"
+    variants:
+      sizes: ["28", "29", "30", "31", "32", "33", "34", "36"]
+      colors: ["Indigo", "Black", "Light Wash", "Dark Wash", "Gray"]
+    adjectives: ["Slim", "Straight", "Relaxed", "Tapered", "Wide-Leg", "Skinny", "Classic"]
+
+  - category: "Bottoms"
+    subcategory: "Pants"
+    product_type: "Bottoms"
+    sku_prefix: "BP"
+    sku_count: 180
+    price_min: 58.00
+    price_max: 118.00
+    cost_margin: 0.42
+    seasonality: "year_round"
+    variants:
+      sizes: ["XS", "S", "M", "L", "XL", "XXL"]
+      colors: ["Khaki", "Black", "Olive", "Navy", "Charcoal", "Stone"]
+    adjectives: ["Cargo", "Chino", "Jogger", "Linen", "Tech", "Trail", "Field"]
+
+  - category: "Bottoms"
+    subcategory: "Shorts"
+    product_type: "Bottoms"
+    sku_prefix: "BS"
+    sku_count: 90
+    price_min: 38.00
+    price_max: 68.00
+    cost_margin: 0.39
+    seasonality: "summer"
+    variants:
+      sizes: ["XS", "S", "M", "L", "XL", "XXL"]
+      colors: ["Khaki", "Navy", "Olive", "Black", "Stone", "White"]
+    adjectives: ["Cargo", "Chino", "Linen", "Active", "Board", "Walk"]
+
+  - category: "Accessories"
+    subcategory: "Bags"
+    product_type: "Accessories"
+    sku_prefix: "AB"
+    sku_count: 120
+    price_min: 48.00
+    price_max: 280.00
+    cost_margin: 0.43
+    seasonality: "year_round"
+    variants:
+      sizes: ["One Size"]
+      colors: ["Tan", "Black", "Brown", "Olive", "Navy", "Cream"]
+    adjectives: ["Tote", "Crossbody", "Backpack", "Weekender", "Clutch", "Messenger", "Canvas"]
+
+  - category: "Accessories"
+    subcategory: "Hats"
+    product_type: "Accessories"
+    sku_prefix: "AH"
+    sku_count: 80
+    price_min: 28.00
+    price_max: 48.00
+    cost_margin: 0.38
+    seasonality: "year_round"
+    variants:
+      sizes: ["One Size"]
+      colors: ["Natural", "Black", "Navy", "Olive", "Cream"]
+    adjectives: ["Baseball", "Bucket", "Beanie", "Snapback", "Trucker", "Wool"]
+
+  - category: "Accessories"
+    subcategory: "Belts"
+    product_type: "Accessories"
+    sku_prefix: "AL"
+    sku_count: 60
+    price_min: 38.00
+    price_max: 78.00
+    cost_margin: 0.40
+    seasonality: "year_round"
+    variants:
+      sizes: ["S/M", "M/L", "L/XL"]
+      colors: ["Black", "Brown", "Tan"]
+    adjectives: ["Leather", "Canvas", "Braided", "Woven", "Reversible"]
+
+  - category: "Accessories"
+    subcategory: "Socks"
+    product_type: "Accessories"
+    sku_prefix: "AS"
+    sku_count: 90
+    price_min: 12.00
+    price_max: 22.00
+    cost_margin: 0.35
+    seasonality: "year_round"
+    variants:
+      sizes: ["S", "M", "L"]
+      colors: ["White", "Black", "Gray", "Olive", "Navy", "Striped"]
+    adjectives: ["Merino", "Crew", "No-Show", "Athletic", "Ankle", "Quarter"]
+
+  - category: "Footwear"
+    subcategory: "Sneakers"
+    product_type: "Footwear"
+    sku_prefix: "FS"
+    sku_count: 180
+    price_min: 98.00
+    price_max: 220.00
+    cost_margin: 0.43
+    seasonality: "year_round"
+    variants:
+      sizes: ["7", "8", "9", "10", "11", "12", "13"]
+      colors: ["White", "Black", "Navy", "Gray", "Tan"]
+    adjectives: ["Low-Top", "High-Top", "Trail", "Classic", "Court", "Everyday"]
+
+  - category: "Footwear"
+    subcategory: "Boots"
+    product_type: "Footwear"
+    sku_prefix: "FB"
+    sku_count: 90
+    price_min: 148.00
+    price_max: 320.00
+    cost_margin: 0.42
+    seasonality: "fall_winter"
+    variants:
+      sizes: ["7", "8", "9", "10", "11", "12"]
+      colors: ["Brown", "Black", "Tan", "Chestnut"]
+    adjectives: ["Chelsea", "Lace-Up", "Combat", "Work", "Chukka", "Hiking"]
+
+  - category: "Footwear"
+    subcategory: "Sandals"
+    product_type: "Footwear"
+    sku_prefix: "FD"
+    sku_count: 60
+    price_min: 58.00
+    price_max: 88.00
+    cost_margin: 0.40
+    seasonality: "summer"
+    variants:
+      sizes: ["7", "8", "9", "10", "11", "12"]
+      colors: ["Tan", "Black", "White", "Navy"]
+    adjectives: ["Slide", "Strap", "Fisherman", "Platform", "Flat", "Sport"]
+
+  - category: "Limited Editions"
+    subcategory: "Various"
+    product_type: "Limited Edition"
+    sku_prefix: "LE"
+    sku_count: 160
+    price_min: 48.00
+    price_max: 420.00
+    cost_margin: 0.38
+    seasonality: "year_round"
+    is_limited: true
+    variants:
+      sizes: ["XS", "S", "M", "L", "XL"]
+      colors: ["Black", "Cream", "Forest", "Terracotta"]
+    adjectives: ["Archive", "Reserve", "Capsule", "Collector", "Artist", "Heritage", "Numbered"]
+
+# Story-critical SKUs — these have fixed IDs and drive narrative arcs
+special_skus:
+  - sku: "OJ-001-MED-BLU"
+    product_id: "1000001"
+    variant_id: "2000001"
+    inventory_item_id: "3000001"
+    name: "Heritage Denim Jacket"
+    category: "Outerwear"
+    subcategory: "Jackets"
+    product_type: "Outerwear"
+    size: "Medium"
+    color: "Blue"
+    price: 189.00
+    cost: 79.38
+    story: "story_2_inventory_crisis"
+
+  - sku: "BP-001-REG-KHA"
+    product_id: "1000002"
+    variant_id: "2000002"
+    inventory_item_id: "3000002"
+    name: "Cargo Field Pants"
+    category: "Bottoms"
+    subcategory: "Pants"
+    product_type: "Bottoms"
+    size: "Regular"
+    color: "Khaki"
+    price: 118.00
+    cost: 49.56
+    story: "story_4_viral_moment"
+
+# Resort Wear line — Story 5 (launched March 1, 2026)
+resort_wear:
+  launch_date: "2026-03-01"
+  sku_count: 18
+  price_min: 58.00
+  price_max: 148.00
+  category: "Limited Editions"
+  subcategory: "Resort Wear"
+  product_type: "Resort Wear"
+  sku_prefix: "RW"
+  clearance_start_date: "2026-05-15"
+  clearance_discount_pct: 0.40

@@ -111,6 +111,10 @@ coverage.xml
 # But DO commit the small tier (used in unit tests)
 !05_demo_data/datasets/small/
 
+# inventory_snapshots.csv is ~110 MB (365 days × all variants) — exceeds GitHub's
+# 100 MB limit. Regenerate with: python generators/main.py --tier small
+05_demo_data/datasets/small/bronze_pre_aggregated/inventory_snapshots.csv
+
 # Generator working files
 05_demo_data/.cache/
 05_demo_data/tmp/
