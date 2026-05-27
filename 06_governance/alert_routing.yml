@@ -1,0 +1,196 @@
+# Data quality alert routing — Spark Retail Pack
+# Per §8.8: test failures and freshness SLA breaches route to the owning team's channel.
+#
+# This file is config-driven — routing is not hardcoded in dbt tests or macros.
+# The Data Operations dashboard reads this to determine where to send alerts.
+# Clients replace the Slack channel slugs and escalation contacts with their own.
+#
+# Alert severity levels:
+#   error   — data pipeline is broken; immediate action required
+#   warn    — data may be stale or degraded; review within SLA window
+#   info    — informational; no action required immediately
+#
+# Escalation: if an alert is not acknowledged within the sla_ack_hours window,
+# it escalates to the escalation_contact list.
+
+version: 1
+
+# ─── Notification channels ────────────────────────────────────────────────────
+
+notification_channels:
+  slack:
+    workspace: "{{ env_var('SLACK_WORKSPACE', 'your-workspace') }}"
+    channels:
+      data_alerts_sales: "#data-alerts-sales"
+      data_alerts_customer: "#data-alerts-customer"
+      data_alerts_inventory: "#data-alerts-inventory"
+      data_alerts_platform: "#data-alerts-platform"
+      data_alerts_security: "#data-alerts-security"
+
+# ─── Domain alert routing ─────────────────────────────────────────────────────
+
+domains:
+
+  - domain: sales
+    description: Shopify orders, refunds, Stripe reconciliation.
+    primary_channel: data_alerts_sales
+    escalation_channel: data_alerts_platform
+    business_owner_contact: "finance-team@example.com"
+    technical_steward_contact: "analytics-eng@example.com"
+    sla_ack_hours: 2          # errors must be acknowledged within 2 hours
+
+    freshness_slas:
+      shopify_orders:
+        source_table: "raw_retail.shopify.orders"
+        warn_after_hours: 6
+        error_after_hours: 24
+      stripe_transactions:
+        source_table: "raw_retail.stripe.transactions"
+        warn_after_hours: 12
+        error_after_hours: 48
+
+    quality_slas:
+      error_rate_allowed: 0            # zero tolerance for sales test failures
+      test_categories_that_page: [schema, business_rule, singular]
+
+    alert_types:
+      - type: freshness_warn
+        severity: warn
+        notify: [data_alerts_sales]
+      - type: freshness_error
+        severity: error
+        notify: [data_alerts_sales, data_alerts_platform]
+        escalate_after_hours: 2
+        escalation_contact: [business_owner_contact, technical_steward_contact]
+      - type: test_failure_error
+        severity: error
+        notify: [data_alerts_sales]
+        escalate_after_hours: 2
+        escalation_contact: [technical_steward_contact]
+      - type: reconciliation_mismatch
+        severity: error
+        notify: [data_alerts_sales]
+        note: "Stripe vs Shopify net revenue mismatch > 0.1%"
+
+  - domain: customer
+    description: Klaviyo email events, GA4 sessions, Meta Ads spend, dim_customer.
+    primary_channel: data_alerts_customer
+    escalation_channel: data_alerts_platform
+    business_owner_contact: "marketing-team@example.com"
+    technical_steward_contact: "analytics-eng@example.com"
+    sla_ack_hours: 4
+
+    freshness_slas:
+      klaviyo_events:
+        source_table: "raw_retail.klaviyo.events"
+        warn_after_hours: 6
+        error_after_hours: 24
+      ga4_sessions:
+        source_table: "raw_retail.ga4.events"
+        warn_after_hours: 24
+        error_after_hours: 48          # GA4 has its own known latency
+      meta_ads_spend:
+        source_table: "raw_retail.meta_ads.ad_insights"
+        warn_after_hours: 12
+        error_after_hours: 48
+
+    quality_slas:
+      error_rate_allowed_pct: 0.1      # < 0.1% of rows allowed to fail (Klaviyo, Meta Ads)
+      ga4_error_rate_allowed_pct: 0.5  # < 0.5% for GA4 (higher tolerance for GA4 quirks)
+      test_categories_that_page: [schema, business_rule]
+
+    alert_types:
+      - type: freshness_warn
+        severity: warn
+        notify: [data_alerts_customer]
+      - type: freshness_error
+        severity: error
+        notify: [data_alerts_customer, data_alerts_platform]
+        escalate_after_hours: 4
+        escalation_contact: [business_owner_contact, technical_steward_contact]
+      - type: test_failure_error
+        severity: error
+        notify: [data_alerts_customer]
+        escalate_after_hours: 4
+        escalation_contact: [technical_steward_contact]
+      - type: pii_access_anomaly
+        severity: warn
+        notify: [data_alerts_security]
+        note: "Triggered when a user exceeds 50 PII queries in 24 hours"
+
+  - domain: inventory
+    description: Shopify inventory snapshots and movements.
+    primary_channel: data_alerts_inventory
+    escalation_channel: data_alerts_platform
+    business_owner_contact: "operations-team@example.com"
+    technical_steward_contact: "analytics-eng@example.com"
+    sla_ack_hours: 4
+
+    freshness_slas:
+      shopify_inventory:
+        source_table: "raw_retail.shopify.inventory_levels"
+        warn_after_hours: 24
+        error_after_hours: 48
+
+    quality_slas:
+      error_rate_allowed: 0            # zero tolerance for inventory snapshot failures
+      test_categories_that_page: [schema, business_rule, singular]
+
+    alert_types:
+      - type: freshness_warn
+        severity: warn
+        notify: [data_alerts_inventory]
+      - type: freshness_error
+        severity: error
+        notify: [data_alerts_inventory, data_alerts_platform]
+        escalate_after_hours: 4
+        escalation_contact: [business_owner_contact, technical_steward_contact]
+      - type: test_failure_error
+        severity: error
+        notify: [data_alerts_inventory]
+        escalate_after_hours: 4
+        escalation_contact: [technical_steward_contact]
+      - type: stockout_threshold_breach
+        severity: warn
+        notify: [data_alerts_inventory]
+        note: "Triggered when stockout_rate exceeds configured threshold (default 10%)"
+
+  - domain: cross_domain
+    description: >
+      Alerts that span multiple domains or affect the platform as a whole.
+      Includes dbt run failures, CI failures, and cross-domain reconciliation issues.
+    primary_channel: data_alerts_platform
+    escalation_channel: data_alerts_platform
+    business_owner_contact: "analytics-eng@example.com"
+    technical_steward_contact: "analytics-eng@example.com"
+    sla_ack_hours: 1
+
+    alert_types:
+      - type: dbt_run_failure
+        severity: error
+        notify: [data_alerts_platform]
+        escalate_after_hours: 1
+      - type: ci_failure
+        severity: error
+        notify: [data_alerts_platform]
+      - type: quarantine_spike
+        severity: warn
+        notify: [data_alerts_platform]
+        note: "Triggered when quarantined rows exceed 1% of processed rows in a run"
+
+# ─── Monthly quality report routing ───────────────────────────────────────────
+
+monthly_quality_reports:
+  recipients:
+    - domain: sales
+      send_to: [business_owner_contact]    # finance
+    - domain: customer
+      send_to: [business_owner_contact]    # marketing
+    - domain: inventory
+      send_to: [business_owner_contact]    # operations
+  report_contents:
+    - test_pass_rate_by_domain
+    - source_freshness_sla_compliance
+    - quarantined_rows_vs_processed
+    - top_10_most_failed_tests_with_trend
+    - open_vs_resolved_data_incidents

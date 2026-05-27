@@ -1,0 +1,147 @@
+# Audit log retention — Spark Retail Pack
+# Per §8.9 and §8.7: specifies how long each type of audit log is retained,
+# where it lives, and whether it can be downsampled during archival.
+#
+# Distinct from general data retention (06_governance/retention.yml):
+# this file covers only audit, lineage, and access logs — records that exist
+# to prove what happened, not to support analytical queries.
+#
+# Archival rule: audit logs must NEVER be downsampled or aggregated.
+# Every row must survive intact in the archive. Full-row archival only.
+#
+# The erasure_log is special: it must survive even after the customer it
+# references has been erased. Retention period is 5 years from erasure event.
+
+version: 1
+
+# ─── Snowflake native account logs ────────────────────────────────────────────
+# Managed by Snowflake; not directly controlled by the pack.
+# Clients on Business Critical or Enterprise plan get extended retention options.
+
+snowflake_account_logs:
+
+  - log_name: access_history
+    source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    description: >
+      Records every object access in the warehouse: user, query text, objects read/written,
+      timestamp. Primary evidence source for PII access auditing and compliance review.
+    retention_months: 12
+    archive_months: null        # Snowflake does not export this natively; use COPY INTO if longer retention needed
+    controlled_by: snowflake
+    note: >
+      Snowflake retains for 12 months by default (Enterprise tier). Business Critical
+      tier may support longer. To extend, export to S3/Azure Blob on a scheduled basis.
+      The Data Operations dashboard monitors this for PII access anomalies.
+    alert_threshold: 50_pii_queries_per_user_per_day
+
+  - log_name: query_history
+    source: "SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY"
+    description: Full text of every query executed, with execution time, credits consumed, and user identity.
+    retention_months: 12
+    archive_months: null
+    controlled_by: snowflake
+
+  - log_name: login_history
+    source: "SNOWFLAKE.ACCOUNT_USAGE.LOGIN_HISTORY"
+    description: Every login attempt (successful and failed) per user, with client application and IP.
+    retention_months: 12
+    archive_months: null
+    controlled_by: snowflake
+
+  - log_name: grants_to_users
+    source: "SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_USERS"
+    description: Current role grants per user. Used for quarterly access review reports.
+    retention_months: 12
+    archive_months: null
+    controlled_by: snowflake
+
+# ─── Pack-managed audit tables ────────────────────────────────────────────────
+# These live in the ANALYTICS_RETAIL.METADATA schema and are managed by dbt.
+
+pack_audit_tables:
+
+  - log_name: dbt_run_log
+    table: "analytics_retail.metadata.dbt_run_log"
+    description: >
+      One row per dbt invocation. Captures invocation ID, target environment,
+      model count, run status (success/error/warn), start time, end time, and
+      the Git SHA of the dbt project at run time.
+    populated_by: dbt post-run hook
+    retention_active_months: 12
+    archive:
+      after_months: 12
+      strategy: full_row              # no downsampling; every run must be recoverable
+      destination: "analytics_retail.metadata_archive.dbt_run_log"
+      archive_retention_months: 60    # 5 years
+    columns:
+      - invocation_id
+      - run_started_at
+      - run_completed_at
+      - git_sha
+      - target_environment
+      - models_run
+      - models_errored
+      - run_status
+
+  - log_name: erasure_log
+    table: "analytics_retail.metadata.erasure_log"
+    description: >
+      One row per erasure event. Provides cryptographic proof that a GDPR/CCPA
+      erasure was executed. Must be retained even after the referenced customer
+      record is erased — the log is evidence that the erasure occurred.
+    populated_by: customer_erasure macro
+    retention_active_months: 60       # 5 years active; no rotation to archive
+    archive:
+      strategy: full_row
+      note: No downsampling. Each row must be individually preserved.
+    columns:
+      - customer_id
+      - ticket_id
+      - legal_basis
+      - scope
+      - requested_at
+      - executed_at
+      - executed_by                   # dbt invocation ID
+      - confirmation_hash             # cryptographic non-repudiation
+    special_rules:
+      - rule: must_survive_customer_erasure
+        description: >
+          The erasure_log row for a customer MUST NOT be deleted when the
+          customer's PII is erased. The log row proves the erasure happened.
+          Retention countdown starts from executed_at, not from request_date.
+
+  - log_name: lineage_edges
+    table: "analytics_retail.metadata.lineage_edges"
+    description: >
+      Flat, SQL-queryable materialisation of dbt model-level lineage.
+      Answers "which model depends on which" and "which dashboards consume dim_customer."
+      Rebuilt on every dbt run; historical versions are not retained.
+    populated_by: lineage_edges macro (OSS macro)
+    retention_active_months: current_only     # always reflects latest run
+    archive: null
+    note: >
+      Historical lineage is tracked via dbt artifacts stored in the dbt Cloud/CI artefact
+      bucket (manifest.json per invocation). The metadata table always reflects current state.
+
+# ─── Archive storage configuration ────────────────────────────────────────────
+
+archive_storage:
+  strategy: snowflake_tables
+  location: "analytics_retail.metadata_archive"
+  note: >
+    Archives use zero-copy cloning where practical for cost efficiency.
+    Cloned tables still count against Snowflake storage; compress before archiving
+    for tables with low query frequency. Review archive size quarterly.
+  compression: zstd               # Snowflake default; already applied automatically
+
+# ─── Summary: retention at a glance ──────────────────────────────────────────
+#
+# Log type                   | Active  | Archive  | Notes
+# ─────────────────────────────────────────────────────────────────────────────
+# Snowflake ACCESS_HISTORY   | 12 mo   | client   | Export to object store if >12 mo needed
+# Snowflake QUERY_HISTORY    | 12 mo   | client   |
+# Snowflake LOGIN_HISTORY    | 12 mo   | client   |
+# Snowflake GRANTS_TO_USERS  | 12 mo   | client   |
+# dbt_run_log                | 12 mo   | 60 mo    | Full row; no downsampling
+# erasure_log                | 60 mo   | —        | Full row; survives customer erasure
+# lineage_edges              | current | —        | Historical in CI artefact bucket

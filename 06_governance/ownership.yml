@@ -1,0 +1,161 @@
+# Domain ownership matrix — Spark Retail Pack
+# Per §8.3: every domain in the canonical model has a designated business owner
+# (defines what the data means) and a technical steward (maintains the implementation).
+#
+# This is the v1 default. Clients adjust to match their organisation.
+# CI enforces that every dbt model carries matching owner/technical_steward meta tags.
+#
+# Review cadence: quarterly. Update when business teams reorganise.
+
+version: 1
+
+ownership:
+
+  - domain: customer
+    description: Customer identity, lifecycle, acquisition, and engagement.
+    tables:
+      - dim_customer
+      - fact_customer_state_daily
+    business_owner:
+      team: growth_crm
+      display_name: "Growth / CRM Team"
+      responsibilities:
+        - Approves changes to KPI definitions in this domain
+        - Approves changes to canonical column meaning
+        - Approves new dimensions/facts in this domain
+        - Reviews access requests for PII data
+        - Signs off on quarterly data quality report
+    technical_steward:
+      team: analytics_engineering
+      responsibilities:
+        - Investigates data quality issues
+        - Maintains source mappings
+        - Executes access grants
+        - Prepares quarterly data quality reports
+
+  - domain: sales
+    description: Order-to-cash process — from order placement through refund.
+    tables:
+      - fact_orders
+      - fact_order_lines
+      - fact_refunds
+      - dim_payment_method
+    business_owner:
+      team: finance
+      display_name: "Finance"
+      responsibilities:
+        - Approves changes to KPI definitions in this domain
+        - Approves changes to revenue and refund logic
+        - Approves new dimensions/facts in this domain
+        - Signs off on quarterly reconciliation report
+    technical_steward:
+      team: analytics_engineering
+      responsibilities:
+        - Investigates data quality issues
+        - Maintains Shopify and Stripe source mappings
+        - Executes access grants
+
+  - domain: product
+    description: Product catalogue and SKU attributes.
+    tables:
+      - dim_product
+    business_owner:
+      team: merchandising
+      display_name: "Merchandising"
+      responsibilities:
+        - Approves changes to product taxonomy (category/subcategory)
+        - Approves changes to cost and margin fields
+        - Signs off on inventory quality reports
+    technical_steward:
+      team: analytics_engineering
+      responsibilities:
+        - Investigates data quality issues
+        - Maintains Shopify product source mappings
+
+  - domain: inventory
+    description: Stock position, replenishment, and product performance.
+    tables:
+      - fact_inventory_snapshot
+      - fact_inventory_movements
+      - dim_warehouse_location
+    business_owner:
+      team: operations_supply_chain
+      display_name: "Operations / Supply Chain"
+      responsibilities:
+        - Approves changes to inventory KPI definitions
+        - Approves changes to replenishment thresholds
+        - Signs off on quarterly inventory quality report
+    technical_steward:
+      team: analytics_engineering
+      responsibilities:
+        - Investigates stockout and snapshot data quality issues
+        - Maintains Shopify inventory source mappings
+
+  - domain: marketing
+    description: Paid advertising campaigns and web acquisition sessions.
+    tables:
+      - fact_marketing_spend
+      - fact_web_sessions
+      - dim_marketing_campaign
+    business_owner:
+      team: marketing
+      display_name: "Marketing"
+      responsibilities:
+        - Approves changes to ROAS and CAC definitions
+        - Approves changes to channel taxonomy
+        - Reviews access to confidential ad spend data
+        - Signs off on quarterly marketing quality report
+    technical_steward:
+      team: analytics_engineering
+      responsibilities:
+        - Investigates Meta Ads and GA4 data quality issues
+        - Maintains channel and UTM source mappings
+
+  - domain: email_crm
+    description: Email marketing campaigns and subscriber engagement events.
+    tables:
+      - fact_email_engagement
+      - dim_email_campaign
+    business_owner:
+      team: marketing_email
+      display_name: "Marketing (Email)"
+      responsibilities:
+        - Approves changes to email engagement KPI definitions
+        - Approves changes to Klaviyo event taxonomy
+        - Signs off on quarterly email quality report
+    technical_steward:
+      team: analytics_engineering
+      responsibilities:
+        - Investigates Klaviyo data quality issues
+        - Maintains email event type source mappings
+
+  - domain: reference_data
+    description: >
+      Shared reference objects used across all domains.
+      Analytics Engineering owns these directly; no separate business team.
+    tables:
+      - dim_date
+      - dim_channel
+      - dim_geography
+    business_owner:
+      team: analytics_engineering
+      display_name: "Analytics Engineering (shared)"
+      responsibilities:
+        - Approves changes to date dimension flags
+        - Approves changes to channel and geography taxonomy
+        - Maintains backward compatibility on breaking renames
+    technical_steward:
+      team: analytics_engineering
+      responsibilities:
+        - Investigates data quality issues
+        - Maintains seeds for channel and source mappings
+
+# ─── Ownership review schedule ────────────────────────────────────────────────
+
+review_cadence:
+  domain_ownership: quarterly
+  access_grants_admin: quarterly
+  access_grants_pii_finance: quarterly
+  dormant_accounts: monthly          # no login in 90 days
+  service_account_credentials: annually
+  role_definitions: annually
