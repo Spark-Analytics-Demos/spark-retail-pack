@@ -130,12 +130,10 @@ seeds:
   spark_retail_pack:
     +schema: seeds
     +quote_columns: false
-    source_mappings:
-      +tags: ['seeds', 'source_mappings']
     # Reference data seeds — rebuilt on schema change or data refresh
     fx_rates:
       +tags: ['seeds', 'reference_data', 'currency']
-    dim_geography:
+    geography_data:
       +tags: ['seeds', 'reference_data', 'geography']
     channel_mapping:
       +tags: ['seeds', 'reference_data', 'channels']

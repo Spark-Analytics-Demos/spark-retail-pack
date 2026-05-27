@@ -25,14 +25,14 @@ seeds:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "rate > 0"
+              expression: "> 0"
 
-  - name: dim_geography
+  - name: geography_data
     description: >
-      Reference geography dimension. One row per country (country-level grain)
-      or per country + state/region (sub-region grain). Used to populate
-      dim_geography in the core layer. Ships with ~58 country-level rows and
-      sub-region rows for the US (51), UK (4), Canada (10), and Australia (5).
+      Reference geography seed data. One row per country (country-level grain)
+      or per country + state/region (sub-region grain). Read by the dim_geography
+      model which adds geography_sk and audit columns. Ships with ~58 country-level
+      rows and sub-region rows for the US (51), UK (4), Canada (10), and Australia (5).
       Extend to the full ~250 countries + 3,500 sub-regions by loading from
       an authoritative ISO 3166-1/2 source. Section 4 Part 1 §4.7.
     columns:

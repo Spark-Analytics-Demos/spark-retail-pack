@@ -8,8 +8,8 @@ ga4,facebook.com / referral,referral_facebook,Facebook Referral,social,organic_s
 ga4,facebook.com / (none),referral_facebook,Facebook Referral,social,organic_social,false,facebook,meta
 ga4,instagram.com / referral,referral_instagram,Instagram Referral,social,organic_social,false,instagram,meta
 ga4,l.instagram.com / referral,referral_instagram,Instagram Referral,social,organic_social,false,instagram,meta
-ga4,facebook / cpc,paid_social_meta,Meta Ads,social,paid_social,true,facebook,meta
-ga4,instagram / cpc,paid_social_meta,Meta Ads,social,paid_social,true,instagram,meta
+ga4,facebook / cpc,paid_social_meta,Meta Ads,social,paid_social,true,meta,meta
+ga4,instagram / cpc,paid_social_meta,Meta Ads,social,paid_social,true,meta,meta
 ga4,tiktok.com / referral,referral_tiktok,TikTok Referral,social,organic_social,false,tiktok,tiktok
 ga4,tiktok / cpc,paid_social_tiktok,TikTok Ads,social,paid_social,true,tiktok,tiktok
 ga4,twitter.com / referral,referral_twitter,Twitter / X Referral,social,organic_social,false,twitter,twitter
@@ -32,10 +32,10 @@ shopify,shop-app,shopify_shop_app,Shop App,online_store,mobile_app,false,shopify
 shopify,draft_orders,shopify_draft_orders,Draft Orders,online_store,draft,false,shopify,online
 shopify,shopify_draft_orders,shopify_draft_orders,Draft Orders,online_store,draft,false,shopify,online
 shopify,amazon,marketplace_amazon,Amazon,marketplace,marketplace,false,amazon,marketplace
-shopify,google,paid_search_google,Google Shopping,search,shopping,true,google,search
+shopify,google,paid_search_google,Google Ads,search,paid_search,true,google,search
 shopify,tiktok,social_tiktok,TikTok Shop,social,social_commerce,false,tiktok,tiktok
 shopify,recharge,subscription_recharge,ReCharge Subscriptions,online_store,subscription,false,recharge,subscriptions
 shopify,subscription,subscription_other,Subscriptions,online_store,subscription,false,,subscriptions
-meta_ads,*,paid_social_meta,Meta Ads,social,paid_social,true,facebook,meta
+meta_ads,*,paid_social_meta,Meta Ads,social,paid_social,true,meta,meta
 klaviyo,*,email_klaviyo,Klaviyo Email,email,email,false,klaviyo,email
 stripe,direct,stripe_direct,Stripe Direct,online_store,payment_api,false,stripe,direct

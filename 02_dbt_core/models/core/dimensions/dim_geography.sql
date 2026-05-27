@@ -17,7 +17,7 @@ with seed as (
         cast(default_timezone     as varchar)  as default_timezone,
         cast(is_tax_jurisdiction  as boolean)  as is_tax_jurisdiction,
         current_timestamp()                    as _extracted_at
-    from {{ ref('dim_geography') }}
+    from {{ ref('geography_data') }}
 )
 
 select
