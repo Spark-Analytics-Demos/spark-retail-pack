@@ -8,9 +8,11 @@
 03_dbt_pro/
 04_dashboards/*.pbix
 
-# Design docs, governance artifacts, and internal planning — Pro/internal only
+# Design docs, governance, CI/CD, setup, and internal planning — Pro/internal only
 01_design_docs/
 06_governance/
+.github/
+setup/
 CLAUDE.md
 PHASE_0_CHECKLIST.md
 PHASE_0_DECISIONS.md
