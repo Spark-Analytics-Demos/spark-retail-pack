@@ -8,6 +8,13 @@
 03_dbt_pro/
 04_dashboards/*.pbix
 
+# Design docs, governance artifacts, and internal planning — Pro/internal only
+01_design_docs/
+06_governance/
+CLAUDE.md
+PHASE_0_CHECKLIST.md
+PHASE_0_DECISIONS.md
+
 # -----------------------------------------------------------------------------
 # Distribution archives — never commit binaries to git
 # -----------------------------------------------------------------------------
@@ -214,4 +221,3 @@ site/
 !.gitkeep
 !.gitignore
 !README.md
-!CLAUDE.md
