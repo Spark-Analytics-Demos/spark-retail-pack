@@ -63,7 +63,7 @@ jobs:
       - name: YAML lint (changed .yml files only)
         run: |
           CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
-            -- '*.yml' '*.yaml' | grep -v '^\.github/')
+            -- '*.yml' '*.yaml' | grep -v '^\.github/' || true)
           if [ -z "$CHANGED" ]; then
             echo "No YAML files changed — skipping yamllint."
           else
@@ -97,6 +97,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for git diff against base branch
 
       - uses: actions/setup-python@v5
         with:
@@ -128,10 +130,17 @@ jobs:
 
       - name: dbt build
         run: |
+          # Detect whether any dbt model/macro/test/seed/snapshot files changed
+          DBT_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            -- models/ macros/ tests/ seeds/ snapshots/ \
+               dbt_project.yml packages.yml || true)
+
           if [ -f state/manifest.json ]; then
             echo "Manifest found — building state:modified+ models."
             dbt build --select state:modified+ --state state/ --target ci
-          else
-            echo "No manifest yet (expected on first run) — full build."
+          elif [ -n "$DBT_FILES" ]; then
+            echo "No manifest — full build (dbt files changed)."
             dbt build --target ci
+          else
+            echo "No manifest and no dbt file changes — skipping build."
           fi
