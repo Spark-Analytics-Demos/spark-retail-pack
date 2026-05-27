@@ -8,12 +8,16 @@
 03_dbt_pro/
 04_dashboards/*.pbix
 
-# Design docs, governance, CI/CD, setup, decisions, and internal planning — Pro/internal only
+# Pro/internal only — lives in spark-retail-pack-pro
 01_design_docs/
+03_dbt_pro/
 06_governance/
 07_decisions/
 .github/
 setup/
+02_dbt_core/macros/
+02_dbt_core/models/intermediate/
+02_dbt_core/seeds/erasure_requests.csv
 CLAUDE.md
 PHASE_0_CHECKLIST.md
 PHASE_0_DECISIONS.md
