@@ -105,15 +105,9 @@ coverage.xml
 # -----------------------------------------------------------------------------
 # Demo data — generated artifacts
 # -----------------------------------------------------------------------------
-# Generated CSV/JSON datasets — too large to commit; regenerated from generators
-05_demo_data/datasets/medium/
-05_demo_data/datasets/large/
-# But DO commit the small tier (used in unit tests)
-!05_demo_data/datasets/small/
-
-# inventory_snapshots.csv is ~110 MB (365 days × all variants) — exceeds GitHub's
-# 100 MB limit. Regenerate with: python generators/main.py --tier small
-05_demo_data/datasets/small/bronze_pre_aggregated/inventory_snapshots.csv
+# Generated CSV/JSON datasets — regenerated from generators; not committed
+# To regenerate: cd 05_demo_data && python generators/main.py --tier small
+05_demo_data/datasets/
 
 # Generator working files
 05_demo_data/.cache/
