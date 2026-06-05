@@ -73,39 +73,25 @@ def generate_products(rng: np.random.Generator, cfg: dict, catalog: dict, compan
             "updated_at": updated_ts.isoformat(),
         })
         variants_rows.append({
-            "id": vid,
-            "product_id": pid,
-            "title": f"{sp['size']} / {sp['color']}",
-            "sku": sku,
-            "price": sp["price"],
-            "compare_at_price": None,
-            "option1": sp["size"],
-            "option2": sp["color"],
-            "option3": None,
-            "inventory_item_id": iid,
-            "inventory_quantity": 47,
-            "requires_shipping": True,
-            "taxable": True,
-            "barcode": f"NW{pid}{vid}",
-            "weight": 0.6,
-            "weight_unit": "kg",
-            "created_at": created_ts.isoformat(),
-            "updated_at": updated_ts.isoformat(),
+            "id": vid, "product_id": pid, "title": f"{sp['size']} / {sp['color']}",
+            "sku": sku, "price": sp["price"], "compare_at_price": None,
+            "option1": sp["size"], "option2": sp["color"], "option3": None,
+            "inventory_item_id": iid, "inventory_quantity": 47,
+            "old_inventory_quantity": 47, "inventory_management": "shopify",
+            "inventory_policy": "deny", "fulfillment_service": "manual",
+            "requires_shipping": True, "taxable": True, "barcode": f"NW{pid}{vid}",
+            "weight": 0.6, "weight_unit": "kg", "image_id": None,
+            "created_at": created_ts.isoformat(), "updated_at": updated_ts.isoformat(),
         })
         inv_items_rows.append({
-            "id": iid,
-            "sku": sku,
-            "cost": sp["cost"],
-            "tracked": True,
-            "country_code_of_origin": "PT",
-            "created_at": created_ts.isoformat(),
-            "updated_at": updated_ts.isoformat(),
+            "id": iid, "sku": sku, "cost": sp["cost"], "tracked": True,
+            "country_code_of_origin": "PT", "province_code_of_origin": None,
+            "harmonized_system_code": None, "requires_shipping": True,
+            "created_at": created_ts.isoformat(), "updated_at": updated_ts.isoformat(),
         })
         inv_levels_rows.append({
-            "inventory_item_id": iid,
-            "location_id": location_id,
-            "available": 47,
-            "updated_at": updated_ts.isoformat(),
+            "inventory_item_id": iid, "location_id": location_id,
+            "available": 47, "incoming": 0, "updated_at": updated_ts.isoformat(),
         })
 
     # Resort Wear line (18 SKUs) — Story 5
@@ -141,18 +127,21 @@ def generate_products(rng: np.random.Generator, cfg: dict, catalog: dict, compan
             "id": vid, "product_id": pid, "title": f"{size} / {color}", "sku": sku,
             "price": price, "compare_at_price": None, "option1": size, "option2": color,
             "option3": None, "inventory_item_id": iid, "inventory_quantity": 80,
+            "old_inventory_quantity": 80, "inventory_management": "shopify",
+            "inventory_policy": "deny", "fulfillment_service": "manual",
             "requires_shipping": True, "taxable": True, "barcode": f"NW{pid}{vid}",
-            "weight": 0.4, "weight_unit": "kg",
+            "weight": 0.4, "weight_unit": "kg", "image_id": None,
             "created_at": rw_launch_ts.isoformat(), "updated_at": updated_ts.isoformat(),
         })
         inv_items_rows.append({
             "id": iid, "sku": sku, "cost": cost, "tracked": True,
-            "country_code_of_origin": "PT", "created_at": rw_launch_ts.isoformat(),
-            "updated_at": updated_ts.isoformat(),
+            "country_code_of_origin": "PT", "province_code_of_origin": None,
+            "harmonized_system_code": None, "requires_shipping": True,
+            "created_at": rw_launch_ts.isoformat(), "updated_at": updated_ts.isoformat(),
         })
         inv_levels_rows.append({
             "inventory_item_id": iid, "location_id": location_id,
-            "available": 80, "updated_at": updated_ts.isoformat(),
+            "available": 80, "incoming": 0, "updated_at": updated_ts.isoformat(),
         })
 
     # Regular catalog products
@@ -225,39 +214,27 @@ def generate_products(rng: np.random.Generator, cfg: dict, catalog: dict, compan
                     init_qty = int(rng.integers(20, 200))
 
                     variants_rows.append({
-                        "id": vid,
-                        "product_id": pid,
-                        "title": f"{size} / {color}",
-                        "sku": sku,
-                        "price": price,
-                        "compare_at_price": None,
-                        "option1": size,
-                        "option2": color,
-                        "option3": None,
-                        "inventory_item_id": iid,
-                        "inventory_quantity": init_qty,
-                        "requires_shipping": True,
-                        "taxable": True,
-                        "barcode": f"NW{pid}{vid}",
-                        "weight": round(float(rng.uniform(0.2, 1.5)), 2),
-                        "weight_unit": "kg",
-                        "created_at": created_ts.isoformat(),
-                        "updated_at": sync_ts.isoformat(),
+                        "id": vid, "product_id": pid, "title": f"{size} / {color}",
+                        "sku": sku, "price": price, "compare_at_price": None,
+                        "option1": size, "option2": color, "option3": None,
+                        "inventory_item_id": iid, "inventory_quantity": init_qty,
+                        "old_inventory_quantity": init_qty, "inventory_management": "shopify",
+                        "inventory_policy": "deny", "fulfillment_service": "manual",
+                        "requires_shipping": True, "taxable": True, "barcode": f"NW{pid}{vid}",
+                        "weight": round(float(rng.uniform(0.2, 1.5)), 2), "weight_unit": "kg",
+                        "image_id": None,
+                        "created_at": created_ts.isoformat(), "updated_at": sync_ts.isoformat(),
                     })
                     inv_items_rows.append({
-                        "id": iid,
-                        "sku": sku,
-                        "cost": cost,
-                        "tracked": True,
+                        "id": iid, "sku": sku, "cost": cost, "tracked": True,
                         "country_code_of_origin": str(rng.choice(["CN", "PT", "IN", "BD", "VN"])),
-                        "created_at": created_ts.isoformat(),
-                        "updated_at": sync_ts.isoformat(),
+                        "province_code_of_origin": None, "harmonized_system_code": None,
+                        "requires_shipping": True,
+                        "created_at": created_ts.isoformat(), "updated_at": sync_ts.isoformat(),
                     })
                     inv_levels_rows.append({
-                        "inventory_item_id": iid,
-                        "location_id": location_id,
-                        "available": init_qty,
-                        "updated_at": sync_ts.isoformat(),
+                        "inventory_item_id": iid, "location_id": location_id,
+                        "available": init_qty, "incoming": 0, "updated_at": sync_ts.isoformat(),
                     })
 
     # Locations table
@@ -268,12 +245,18 @@ def generate_products(rng: np.random.Generator, cfg: dict, catalog: dict, compan
             "name": loc["name"],
             "active": loc["active"],
             "address1": loc["address1"],
+            "address2": None,
             "city": loc["city"],
             "province": loc["province"],
             "province_code": loc["province_code"],
             "country_code": loc["country_code"],
+            "country": loc.get("country", "United States"),
             "zip": loc["zip"],
             "phone": loc["phone"],
+            "fulfillment_service": "manual",
+            "local_pickup_settings_instructions": None,
+            "legacy": False,
+            "created_at": sync_ts.isoformat(),
             "updated_at": sync_ts.isoformat(),
         })
 

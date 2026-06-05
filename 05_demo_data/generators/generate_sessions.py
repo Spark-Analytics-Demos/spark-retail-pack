@@ -182,7 +182,13 @@ def generate_sessions(
 
         if upid not in seen_pseudo_ids:
             seen_pseudo_ids.add(upid)
-            user_rows.append({"user_pseudo_id": upid, "_fivetran_synced": order_ts.isoformat()})
+            user_rows.append({
+                "user_pseudo_id":  upid,
+                "user_id":         str(order["customer_id"]) if order["customer_id"] else None,
+                "first_seen_date": event_date.isoformat(),
+                "last_seen_date":  event_date.isoformat(),
+                "_fivetran_synced": order_ts.isoformat(),
+            })
 
     # Browsing-only sessions (no purchase) — sampled at browse_ratio × orders
     n_browse = int(len(orders_df) * browse_ratio)
@@ -232,7 +238,13 @@ def generate_sessions(
 
         if upid not in seen_pseudo_ids:
             seen_pseudo_ids.add(upid)
-            user_rows.append({"user_pseudo_id": upid, "_fivetran_synced": browse_ts.isoformat()})
+            user_rows.append({
+                "user_pseudo_id":  upid,
+                "user_id":         None,
+                "first_seen_date": browse_date.isoformat(),
+                "last_seen_date":  browse_date.isoformat(),
+                "_fivetran_synced": browse_ts.isoformat(),
+            })
 
     return {
         "ga4_events": pd.DataFrame(event_rows),

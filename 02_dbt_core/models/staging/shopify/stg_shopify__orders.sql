@@ -109,7 +109,7 @@ renamed as (
         -- tags / metadata
         cast(s.tags as varchar)                                                                         as tags_raw,
         cast(s.note as varchar)                                                                         as note,
-        cast(s.discount_codes as variant)                                                               as discount_codes_raw,
+        try_parse_json(cast(s.discount_codes as varchar))                                              as discount_codes_raw,
         try_cast(s.discount_codes[0]:code::varchar as varchar)                                         as primary_discount_code,
 
         -- geography from shipping / billing addresses

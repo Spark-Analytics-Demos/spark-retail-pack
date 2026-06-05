@@ -32,8 +32,7 @@ with snapshot as (
         created_at,
         updated_at,
         dbt_valid_from,
-        dbt_valid_to,
-        _extracted_at
+        dbt_valid_to
     from {{ ref('snap_product') }}
     where sku is not null
 ),
@@ -94,7 +93,22 @@ select
     updated_at,
 
     -- SCD2 columns
+    {%- if target.name in ['staging', 'ci', 'smoke'] %}
+    -- Demo backdate (staging/ci/smoke only): the future-dated catalogue is sync-stamped
+    -- AFTER the order history, so the snapshot's valid_from (from updated_at) lands
+    -- after 2026 orders and the SCD2-correct fact_order_lines join
+    -- (order_date >= valid_from) misses ~99% of lines → NULL product_sk (no
+    -- category / brand / unit_cost). Pull the current version's valid_from back to
+    -- its created_at so historical orders resolve. Prod/dev keep real timestamps —
+    -- real catalogues have meaningful version history. (§4.3 product counterpart.)
+    case
+        when dbt_valid_to is null and created_at::timestamp_ntz < dbt_valid_from
+            then created_at::timestamp_ntz
+        else dbt_valid_from
+    end                                                      as valid_from,
+    {%- else %}
     dbt_valid_from                                            as valid_from,
+    {%- endif %}
     dbt_valid_to                                              as valid_to,
     (dbt_valid_to is null)                                    as is_current,
 
@@ -102,6 +116,6 @@ select
         source_system='shopify',
         source_id_column='variant_id',
         business_columns=['variant_id', 'sku'],
-        extracted_at_column='_extracted_at'
+        extracted_at_column='created_at'
     ) }}
 from enriched

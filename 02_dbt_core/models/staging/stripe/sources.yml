@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: stripe
     description: "Stripe API data landed in the bronze layer by the ingestion tool."
-    database: RAW_RETAIL
+    database: "{{ var('raw_database', 'RAW_RETAIL') }}"
     schema: STRIPE
     meta:
       owner: analytics_engineering

@@ -54,8 +54,29 @@ def generate_inventory(
         d = row["order_date"]
         daily_sales_dict.setdefault(vid, {})[d] = int(row["quantity"])
 
-    # Initial inventory levels (from variants)
-    current_stock = {int(row["id"]): int(row["inventory_quantity"])
+    # Demand-driven stock sizing (reorder-point model).
+    # The old model seeded stock from the static variant inventory_quantity and
+    # restocked in flat 30-120u batches on an 8% weekly coin-flip — a cadence that
+    # only balances at medium-tier sales volume. At small-tier volume it floods
+    # every SKU (turnover ~0.02x, no seasonal drawdown). Instead, size each SKU to
+    # its own realised sales velocity so stock scales with demand at any tier.
+    total_days = (end_date - start_date).days + 1
+    velocity = {                                   # units sold per day, per variant
+        vid: sum(by_date.values()) / total_days
+        for vid, by_date in daily_sales_dict.items()
+    }
+    TARGET_DAYS_SUPPLY = 45      # reorder up to ~45 days of cover
+    REORDER_DAYS_SUPPLY = 21     # trigger a reorder below ~3 weeks of cover
+    MIN_STOCK = 3                # floor so slow movers aren't perpetually out of stock
+
+    def target_level(vid: int) -> int:
+        return max(MIN_STOCK, int(round(velocity.get(vid, 0.0) * TARGET_DAYS_SUPPLY)))
+
+    def reorder_point(vid: int) -> int:
+        return max(1, int(round(velocity.get(vid, 0.0) * REORDER_DAYS_SUPPLY)))
+
+    # Initial on-hand = each SKU's target cover (not the static catalog quantity).
+    current_stock = {int(row["id"]): target_level(int(row["id"]))
                      for _, row in variants_df.iterrows()}
 
     # Map variant_id → inventory_item_id
@@ -73,10 +94,8 @@ def generate_inventory(
     # generate_products.py sets inventory_quantity=47 for both, which matches
     # s2.PRE_STOCKOUT_UNITS and s4.PRE_VIRAL_UNITS. Override only if they're
     # somehow absent (shouldn't happen, but defensive).
-    if s2.STOCKOUT_VARIANT_ID not in current_stock:
-        current_stock[s2.STOCKOUT_VARIANT_ID] = s2.PRE_STOCKOUT_UNITS
-    if s4.VIRAL_VARIANT_ID not in current_stock:
-        current_stock[s4.VIRAL_VARIANT_ID] = s4.PRE_VIRAL_UNITS
+    current_stock[s2.STOCKOUT_VARIANT_ID] = s2.PRE_STOCKOUT_UNITS
+    current_stock[s4.VIRAL_VARIANT_ID] = s4.PRE_VIRAL_UNITS
 
     current_date = start_date
     while current_date <= end_date:
@@ -146,22 +165,26 @@ def generate_inventory(
                 current_stock[vid] = stock_after
                 stock = stock_after
 
-            # Weekly restock for non-special SKUs: every Monday, 20% probability
+            # Weekly reorder for non-special SKUs: every Monday, top up to the
+            # target cover when on-hand has fallen to the reorder point. Order
+            # quantity tracks demand (target_level - stock), so fast movers refill
+            # often and slow movers rarely — inventory stays proportional to sales.
             elif current_date.weekday() == 0 and vid not in (s2.STOCKOUT_VARIANT_ID, s4.VIRAL_VARIANT_ID):
-                if stock < 10 or rng.random() < 0.08:
-                    restock = int(rng.integers(30, 120))
-                    movement_rows.append({
-                        "id": movement_id,
-                        "inventory_item_id": variant_to_iid.get(vid, vid),
-                        "location_id": location_id,
-                        "happened_at": datetime(current_date.year, current_date.month, current_date.day, 9, 0, 0, tzinfo=timezone.utc).isoformat(),
-                        "reason": "receipt",
-                        "quantity": restock,
-                        "available_adjustment": restock,
-                    })
-                    movement_id += 1
-                    current_stock[vid] += restock
-                    stock = current_stock[vid]
+                if stock <= reorder_point(vid):
+                    restock = target_level(vid) - stock
+                    if restock > 0:
+                        movement_rows.append({
+                            "id": movement_id,
+                            "inventory_item_id": variant_to_iid.get(vid, vid),
+                            "location_id": location_id,
+                            "happened_at": datetime(current_date.year, current_date.month, current_date.day, 9, 0, 0, tzinfo=timezone.utc).isoformat(),
+                            "reason": "receipt",
+                            "quantity": restock,
+                            "available_adjustment": restock,
+                        })
+                        movement_id += 1
+                        current_stock[vid] += restock
+                        stock = current_stock[vid]
 
             iid = variant_to_iid.get(vid, vid)
             cost = iid_to_cost.get(iid, 0.0)
@@ -199,6 +222,7 @@ def generate_inventory(
             "inventory_item_id": iid,
             "location_id": location_id,
             "available": max(0, stock),
+            "incoming": 0,
             "updated_at": sync_ts,
         })
 

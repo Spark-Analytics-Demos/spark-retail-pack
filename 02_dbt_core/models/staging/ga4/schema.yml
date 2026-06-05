@@ -35,6 +35,10 @@ models:
         description: "Date the event occurred (GA4 event_date, YYYYMMDD format normalized to DATE)."
         tests:
           - not_null
+          # Catches the YYYYMMDD-parsed-as-epoch-seconds bug (1970 dates).
+          - dbt_utils.accepted_range:
+              min_value: "'2015-01-01'"
+              max_value: "'2030-01-01'"
       - name: event_timestamp
         description: "Timestamp of the event, converted from INT64 microseconds since epoch."
         tests:

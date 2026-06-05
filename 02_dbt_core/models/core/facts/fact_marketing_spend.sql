@@ -53,6 +53,37 @@ channel_lookup as (
     select channel_sk
     from {{ ref('dim_channel') }}
     where channel_id = 'paid_social_meta'
+),
+
+-- FX rate validity intervals (same LEAD-window pattern as fact_orders)
+fx_intervals as (
+    select
+        from_currency,
+        rate_date                                                       as valid_from,
+        lead(rate_date) over (
+            partition by from_currency, to_currency
+            order by rate_date
+        )                                                               as valid_to,
+        rate
+    from {{ ref('fx_rates') }}
+    where to_currency = '{{ var("reporting_currency", "USD") }}'
+),
+
+campaign_day_fx as (
+    select
+        cd.*,
+        coalesce(
+            fx.rate,
+            case when upper(cd.account_currency) = '{{ var("reporting_currency", "USD") }}'
+                 then 1.0
+                 else null
+            end
+        )::numeric(18,8)                                                as fx_rate
+    from campaign_day cd
+    left join fx_intervals fx
+        on upper(cd.account_currency) = fx.from_currency
+        and cd.spend_date::date >= fx.valid_from
+        and (fx.valid_to is null or cd.spend_date::date < fx.valid_to)
 )
 
 select
@@ -70,7 +101,7 @@ select
 
     -- Spend in reporting currency
     cast(cd.spend_amount_local
-         * cast({{ daily_fx_rate('cd.account_currency', 'cd.spend_date') }} as numeric(18,8))
+         * coalesce(cd.fx_rate, 1.0)
          as numeric(18,4))                                              as spend_amount,
     cast('{{ var("reporting_currency", "USD") }}' as varchar)           as currency_code,
     cd.account_currency                                                 as original_currency_code,
@@ -93,7 +124,7 @@ select
         extracted_at_column='cd._extracted_at'
     ) }}
 
-from campaign_day cd
+from campaign_day_fx cd
 -- SCD2-correct campaign: version active on spend_date
 left join campaign_lookup dc
     on dc.campaign_id = cd.campaign_id

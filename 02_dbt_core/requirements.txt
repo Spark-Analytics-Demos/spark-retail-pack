@@ -12,8 +12,14 @@
 # =============================================================================
 
 # Core dbt
-dbt-core==1.9.0
+# dbt-core 1.11.x required for Python 3.13 (1.9 has no 3.13 wheel). Per ADR-005.
+dbt-core==1.11.11
 dbt-snowflake==1.9.4
+
+# MetricFlow — semantic layer engine. Used OFFLINE to generate Path 2
+# semantic views (scripts/generate_semantic_views.py); NOT required at
+# dbt build / CI time. Per ADR-005. Pulls metricflow==0.211.0.
+dbt-metricflow==0.13.0
 
 # SQL linting (used in CI, optional for local dev)
 sqlfluff==3.0.7

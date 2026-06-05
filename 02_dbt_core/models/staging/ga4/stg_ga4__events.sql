@@ -24,7 +24,10 @@ renamed as (
 
         -- event identity
         cast(event_name as varchar)                                              as event_name,
-        cast(event_date as date)                                                 as event_date,
+        -- event_date is GA4's 'YYYYMMDD' string. The format mask is REQUIRED:
+        -- to_date('20261010') with no mask parses an all-digit string as epoch
+        -- SECONDS (→ 1970-08-23), not a calendar date. See ADR-005 follow-up.
+        to_date(cast(event_date as varchar), 'YYYYMMDD')                         as event_date,
 
         -- event_timestamp: INT64 microseconds since epoch → TIMESTAMP_TZ
         to_timestamp_tz(

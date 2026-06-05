@@ -141,9 +141,13 @@ def generate_customers(rng: np.random.Generator, cfg: dict, seg_config: dict, co
             stripe_customer_id += 1
             stripe_created_unix = int(created_ts.timestamp())
             stripe_rows.append({
-                "id": stripe_cid,
-                "created": stripe_created_unix,
-                "email": email,
+                "id":          stripe_cid,
+                "created":     stripe_created_unix,
+                "email":       email,
+                "name":        f"{first_name} {last_name}",
+                "phone":       phone,
+                "delinquent":  False,
+                "livemode":    True,
             })
 
         # Klaviyo profile (~78% of customers)
@@ -151,12 +155,16 @@ def generate_customers(rng: np.random.Generator, cfg: dict, seg_config: dict, co
             klaviyo_pid = f"KP{klaviyo_profile_id:08d}"
             klaviyo_profile_id += 1
             klaviyo_rows.append({
-                "id": klaviyo_pid,
-                "created": created_ts.isoformat(),
-                "email": email,
-                "first_name": first_name,
-                "last_name": last_name,
-                "_shopify_customer_id": cid,
+                "id":                       klaviyo_pid,
+                "created":                  created_ts.isoformat(),
+                "updated":                  created_ts.isoformat(),
+                "email":                    email,
+                "first_name":               first_name,
+                "last_name":                last_name,
+                "phone_number":             phone,
+                "email_marketing__consent": "subscribed" if accepts_marketing else "unsubscribed",
+                "sms_marketing__consent":   "subscribed" if accepts_sms else "unsubscribed",
+                "_shopify_customer_id":     cid,
             })
 
     return {
@@ -173,10 +181,18 @@ def update_customer_order_stats(shopify_customers: pd.DataFrame, orders: pd.Data
     if orders.empty:
         return shopify_customers
 
+    active_orders = orders[orders["financial_status"].isin(["paid", "partially_paid", "partially_refunded"])]
     order_stats = (
-        orders[orders["financial_status"].isin(["paid", "partially_paid", "partially_refunded"])]
+        active_orders
         .groupby("customer_id")
-        .agg(orders_count=("id", "count"), total_spent=("total_price", "sum"))
+        .agg(
+            orders_count=("id", "count"),
+            total_spent=("total_price", "sum"),
+            # last_order_at: Shopify sets customer.updated_at on every order,
+            # so we mirror that to keep the 24-month activity filter honest in
+            # fact_customer_state_daily's active_customers CTE.
+            last_order_at=("created_at", "max"),
+        )
         .reset_index()
         .rename(columns={"customer_id": "id"})
     )
@@ -188,4 +204,13 @@ def update_customer_order_stats(shopify_customers: pd.DataFrame, orders: pd.Data
     updated = updated.merge(order_stats, on="id", how="left")
     updated["orders_count"] = updated["orders_count"].fillna(0).astype(int)
     updated["total_spent"] = updated["total_spent"].fillna(0.0).round(2)
+
+    # Update updated_at to the customer's most recent order date for customers
+    # who have placed orders. Mirrors Shopify behaviour where updated_at advances
+    # on every order, ensuring these customers pass the 24-month activity window
+    # in fact_customer_state_daily.
+    mask = updated["last_order_at"].notna()
+    updated.loc[mask, "updated_at"] = updated.loc[mask, "last_order_at"]
+    updated = updated.drop(columns=["last_order_at"])
+
     return updated

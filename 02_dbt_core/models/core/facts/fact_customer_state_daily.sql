@@ -14,9 +14,28 @@
 -- OSS columns: 1-18 (state tracking, activity flags, repeat/new flags).
 -- Pro columns 19-25 (RFM tiers, churn probability, predicted LTV) — NULL in OSS per §11.
 
+{# Var arrives as the string 'True'/'False' (target-aware default in dbt_project.yml) or a
+   real bool (--vars); normalise so 'False' isn't treated as truthy. #}
+{% set backfill = (var('backfill_snapshots', false) | string | lower == 'true') %}
+
 with snapshot_date_cte as (
-    -- Always generates today's snapshot; historical backfill = re-run with date override
+    -- Prod/default: today's snapshot only (one row per customer per daily run).
+    -- DEMO backfill (var backfill_snapshots=true, see dbt_project.yml): also emit a
+    -- month-end snapshot for every month in the order history, so the point-in-time
+    -- KPIs (Active Customers, etc.) have a real trend line. current_date() is always
+    -- included so the recency test still passes. All metrics are computed AS-OF
+    -- snapshot_date from fact_orders, so historical snapshots are exact.
+{% if backfill %}
+    select distinct dd.month_ending_date as snapshot_date
+    from {{ ref('dim_date') }} dd
+    where dd.month_ending_date between
+            (select min(order_date) from {{ ref('fact_orders') }})
+        and (select max(order_date) from {{ ref('fact_orders') }})
+    union
+    select current_date()
+{% else %}
     select current_date() as snapshot_date
+{% endif %}
 ),
 
 active_customers as (
@@ -31,6 +50,7 @@ active_customers as (
           updated_at >= dateadd('month', -24, current_date())
           or marketing_consent = true
       )
+      and (acquisition_date is null or acquisition_date::date <= current_date())
 ),
 
 -- Lifetime and trailing order metrics, computed as of snapshot_date
@@ -122,3 +142,9 @@ cross join snapshot_date_cte sd
 left join order_metrics om
     on om.customer_id  = ac.customer_id
     and om.snapshot_date = sd.snapshot_date
+-- Only emit a customer in a snapshot once they exist as-of that date. Matters for the
+-- demo backfill (historical month-end snapshots): a customer acquired after snapshot_date
+-- must not appear yet (otherwise days_since_acquisition would be negative). No-op for the
+-- default today-only snapshot (active_customers is already filtered to acquired customers).
+where ac.acquisition_date is null
+   or ac.acquisition_date::date <= sd.snapshot_date

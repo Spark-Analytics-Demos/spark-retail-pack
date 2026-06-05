@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: meta_ads
     description: "Meta Ads (Facebook + Instagram) data landed in the bronze layer by the ingestion tool."
-    database: RAW_RETAIL
+    database: "{{ var('raw_database', 'RAW_RETAIL') }}"
     schema: META_ADS
     meta:
       owner: analytics_engineering

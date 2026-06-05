@@ -39,14 +39,16 @@ with snapshot as (
         created_at,
         updated_at,
         dbt_valid_from,
-        dbt_valid_to,
-        _extracted_at
+        dbt_valid_to
     from {{ ref('snap_customer') }}
 )
 
 select
     {{ generate_dim_sk(['customer_id'], 'dbt_valid_from') }}  as customer_sk,
     customer_id,
+    shopify_customer_id,
+    stripe_customer_id,
+    klaviyo_profile_id,
 
     -- email: hash column (SHA-256 when masking on; plaintext when masking off per §8.5)
     email_hash,
@@ -113,6 +115,6 @@ select
         source_system='shopify',
         source_id_column='customer_id',
         business_columns=['customer_id', 'email_hash'],
-        extracted_at_column='_extracted_at'
+        extracted_at_column='created_at'
     ) }}
 from snapshot

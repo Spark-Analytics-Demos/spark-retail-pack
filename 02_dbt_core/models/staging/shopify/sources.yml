@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: shopify
     description: "Shopify Admin API data landed in the bronze layer by the ingestion tool."
-    database: RAW_RETAIL
+    database: "{{ var('raw_database', 'RAW_RETAIL') }}"
     schema: SHOPIFY
     meta:
       owner: analytics_engineering
@@ -173,6 +173,35 @@ sources:
               - not_null
           - name: available
             description: "Units available for sale (net of committed)."
+            tests:
+              - not_null
+          - name: updated_at
+            tests:
+              - not_null
+
+      - name: inventory_snapshots
+        description: >
+          Daily per-SKU stock history (pre-aggregated demo feed). One row per
+          inventory_item x location x day. Source for the historical
+          fact_inventory_snapshot (daily-history mode). Real Shopify exposes only
+          current levels (inventory_levels); this feed supplies the dated history
+          the Inventory Health dashboard trends require.
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: updated_at
+        columns:
+          - name: inventory_item_id
+            tests:
+              - not_null
+          - name: location_id
+            tests:
+              - not_null
+          - name: snapshot_date
+            tests:
+              - not_null
+          - name: available
+            description: "Units available for sale on the snapshot_date."
             tests:
               - not_null
           - name: updated_at

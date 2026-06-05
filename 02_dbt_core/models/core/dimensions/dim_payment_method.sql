@@ -17,8 +17,6 @@ with instances as (
 typed as (
     select
         raw_type,
-        card_brand,
-        card_funding,
         card_wallet,
 
         -- canonical payment_method_id
@@ -120,3 +118,10 @@ select
         extracted_at_column='_extracted_at'
     ) }}
 from typed
+-- Multiple instances rows can map to the same payment_method_id (e.g. two different
+-- card brands both using Apple Pay both collapse to 'wallet_applepay'). Deduplicate
+-- to one row per canonical type, preferring rows with more card detail.
+qualify row_number() over (
+    partition by payment_method_id
+    order by card_brand nulls last, card_funding nulls last
+) = 1

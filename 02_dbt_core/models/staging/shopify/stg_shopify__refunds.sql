@@ -22,10 +22,10 @@ renamed as (
         cast(restock as boolean)                                                 as is_restock,
 
         -- refund_line_items VARIANT array — line-level refunds; unwound in int_orders_enriched
-        cast(refund_line_items as variant)                                       as refund_line_items,
+        try_parse_json(cast(refund_line_items as varchar))                       as refund_line_items,
 
         -- transactions VARIANT array — payment-side refunds; amount summed downstream
-        cast(transactions as variant)                                            as refund_transactions,
+        try_parse_json(cast(transactions as varchar))                            as refund_transactions,
 
         created_at                                                               as _extracted_at
     from source

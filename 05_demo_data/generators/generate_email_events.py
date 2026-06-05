@@ -63,17 +63,22 @@ def generate_email_events(
     campaign_rows = []
     for camp in campaigns:
         send_dt = datetime.fromisoformat(camp["send_date"] + "T10:00:00+00:00")
-        campaign_rows.append({
-            "id": camp["id"],
-            "name": camp["name"],
-            "subject": camp["subject"],
-            "status": camp["status"],
-            "_fivetran_synced": datetime(2026, 12, 31, tzinfo=timezone.utc).isoformat(),
-        })
 
         # Subsample profiles to send to (not all profiles receive every campaign)
         send_rate = min(1.0, float(rng.uniform(0.55, 0.85)))
         n_send = max(1, int(len(profile_ids) * send_rate))
+
+        campaign_rows.append({
+            "id":             camp["id"],
+            "name":           camp["name"],
+            "subject":        camp["subject"],
+            "status":         camp["status"],
+            "send_time":      send_dt.isoformat(),
+            "num_recipients": n_send,
+            "created":        send_dt.isoformat(),
+            "updated":        send_dt.isoformat(),
+            "_fivetran_synced": datetime(2026, 12, 31, tzinfo=timezone.utc).isoformat(),
+        })
         send_indices = rng.choice(len(profile_ids), size=n_send, replace=False)
 
         for idx in send_indices:
@@ -147,10 +152,14 @@ def generate_email_events(
     # Flow triggers (welcome series, abandoned cart, post-purchase)
     flow_rows = []
     for flow in flows:
+        flow_created = datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat()
         flow_rows.append({
-            "id": flow["id"],
-            "name": flow["name"],
-            "status": flow["status"],
+            "id":            flow["id"],
+            "name":          flow["name"],
+            "status":        flow["status"],
+            "trigger_type":  flow.get("trigger_type", "metric"),
+            "created":       flow_created,
+            "updated":       datetime(2026, 12, 31, tzinfo=timezone.utc).isoformat(),
             "_fivetran_synced": datetime(2026, 12, 31, tzinfo=timezone.utc).isoformat(),
         })
 

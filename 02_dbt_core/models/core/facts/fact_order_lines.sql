@@ -36,8 +36,8 @@ refund_lines as (
     select
         r.order_id,
         f.value:line_item_id::varchar                                   as line_item_id,
-        sum(try_cast(f.value:quantity as numeric(18,2)))                as refunded_quantity,
-        sum(try_cast(f.value:subtotal as numeric(18,6)))                as refunded_amount_local
+        sum(try_cast(f.value:quantity::varchar as numeric(18,2)))       as refunded_quantity,
+        sum(try_cast(f.value:subtotal::varchar as numeric(18,6)))       as refunded_amount_local
     from {{ ref('stg_shopify__refunds') }} r,
     lateral flatten(input => r.refund_line_items, outer => true) f
     where f.value:line_item_id is not null

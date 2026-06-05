@@ -54,6 +54,14 @@ def generate_marketing_spend(
     meta_campaigns_cfg = marketing_config.get("meta_campaigns", [])
     annual_meta_spend = marketing_config.get("annual_spend", {}).get("meta_ads_usd", 1_800_000)
 
+    # Scale spend to the tier. The campaign daily_budgets in marketing_calendar.yml
+    # are calibrated for the MEDIUM tier (~85K customers, §9.3). Without scaling,
+    # small-tier runs spend the same absolute dollars against ~24x fewer customers,
+    # so CAC/ROAS come out wildly off (CAC ~$1.6K, ROAS ~0.6). Scaling by the tier's
+    # customer count vs the medium baseline keeps CAC/ROAS realistic at every tier.
+    MEDIUM_CUSTOMER_COUNT = 85_000
+    spend_scale = cfg.get("customer_count", MEDIUM_CUSTOMER_COUNT) / MEDIUM_CUSTOMER_COUNT
+
     start_date = date(2026, 1, 1)
     end_date = date(2026, 12, 31)
 
@@ -62,33 +70,56 @@ def generate_marketing_spend(
     adset_rows = []
     ad_rows = []
 
+    sync_ts_str = datetime(2026, 12, 31, tzinfo=timezone.utc).isoformat()
+
     for camp in meta_campaigns_cfg:
         camp_start = date.fromisoformat(camp["start_date"])
-        camp_end = date.fromisoformat(camp["end_date"])
+        camp_end   = date.fromisoformat(camp["end_date"])
+        n_days = max(1, (camp_end - camp_start).days)
+        lifetime_budget = round(camp.get("daily_budget_usd", 0) * spend_scale * n_days, 2)
         campaign_rows.append({
-            "id": camp["id"],
-            "name": camp["name"],
-            "objective": camp["objective"],
-            "status": camp["status"],
-            "account_id": company["meta_ads"]["account_id"],
-            "_fivetran_synced": datetime(2026, 12, 31, tzinfo=timezone.utc).isoformat(),
+            "id":              camp["id"],
+            "name":            camp["name"],
+            "objective":       camp["objective"],
+            "status":          camp["status"],
+            "account_id":      company["meta_ads"]["account_id"],
+            "buying_type":     "AUCTION",
+            "daily_budget":    camp.get("daily_budget_usd", 0) * spend_scale * 100,  # cents
+            "lifetime_budget": 0,
+            "start_time":      datetime(camp_start.year, camp_start.month, camp_start.day, tzinfo=timezone.utc).isoformat(),
+            "stop_time":       datetime(camp_end.year,   camp_end.month,   camp_end.day,   tzinfo=timezone.utc).isoformat(),
+            "created_time":    datetime(camp_start.year, camp_start.month, camp_start.day, tzinfo=timezone.utc).isoformat(),
+            "updated_time":    sync_ts_str,
+            "_fivetran_synced": sync_ts_str,
         })
         for adset in camp.get("ad_sets", []):
+            adset_budget = round(camp.get("daily_budget_usd", 0) * spend_scale / max(1, len(camp.get("ad_sets", [camp]))), 2)
             adset_rows.append({
-                "id": adset["id"],
-                "campaign_id": camp["id"],
-                "name": adset["name"],
-                "status": adset["status"],
-                "_fivetran_synced": datetime(2026, 12, 31, tzinfo=timezone.utc).isoformat(),
+                "id":                adset["id"],
+                "campaign_id":       camp["id"],
+                "name":              adset["name"],
+                "status":            adset["status"],
+                "daily_budget":      adset_budget * 100,  # cents
+                "bid_amount":        None,
+                "billing_event":     "IMPRESSIONS",
+                "optimization_goal": "OFFSITE_CONVERSIONS" if camp["objective"] == "CONVERSIONS" else "REACH",
+                "start_time":        datetime(camp_start.year, camp_start.month, camp_start.day, tzinfo=timezone.utc).isoformat(),
+                "end_time":          datetime(camp_end.year,   camp_end.month,   camp_end.day,   tzinfo=timezone.utc).isoformat(),
+                "created_time":      datetime(camp_start.year, camp_start.month, camp_start.day, tzinfo=timezone.utc).isoformat(),
+                "updated_time":      sync_ts_str,
+                "_fivetran_synced":  sync_ts_str,
             })
             for ad in adset.get("ads", []):
                 ad_rows.append({
-                    "id": ad["id"],
-                    "campaign_id": camp["id"],
-                    "adset_id": adset["id"],
-                    "name": ad["name"],
-                    "status": ad["status"],
-                    "_fivetran_synced": datetime(2026, 12, 31, tzinfo=timezone.utc).isoformat(),
+                    "id":           ad["id"],
+                    "campaign_id":  camp["id"],
+                    "adset_id":     adset["id"],
+                    "name":         ad["name"],
+                    "status":       ad["status"],
+                    "creative_id":  f"CR{ad['id']}",
+                    "created_time": datetime(camp_start.year, camp_start.month, camp_start.day, tzinfo=timezone.utc).isoformat(),
+                    "updated_time": sync_ts_str,
+                    "_fivetran_synced": sync_ts_str,
                 })
 
     # Daily insights: one row per active ad per active day
@@ -112,7 +143,7 @@ def generate_marketing_spend(
             if not (camp_start <= current_date <= camp_end):
                 continue
 
-            daily_budget = camp["daily_budget_usd"] * monthly_mult
+            daily_budget = camp["daily_budget_usd"] * spend_scale * monthly_mult
 
             for adset in camp.get("ad_sets", []):
                 for ad in adset.get("ads", []):

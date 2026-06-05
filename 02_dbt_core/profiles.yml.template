@@ -84,3 +84,24 @@ spark_retail_pack:
       threads: 8
       client_session_keep_alive: false
       query_tag: 'spark_retail_pack_ci'
+
+    # -------------------------------------------------------------------------
+    # Smoke-test environment (Phase 4 fresh-environment gate, §12.10)
+    # Disposable ANALYTICS_RETAIL_SMOKE database, provisioned and torn down by
+    # tests/smoke/run_smoke_test.py. PII masking enabled (staging-like), and
+    # demo historization vars (backfill_snapshots, use_daily_snapshot_history,
+    # dim_product backdate) treat 'smoke' like 'staging' so the dashboards
+    # populate. See SMOKE_TEST.md.
+    # -------------------------------------------------------------------------
+    smoke:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: RETAIL_TRANSFORMER
+      database: ANALYTICS_RETAIL_SMOKE
+      warehouse: WH_TRANSFORM
+      schema: gold
+      threads: 8
+      client_session_keep_alive: false
+      query_tag: 'spark_retail_pack_smoke'

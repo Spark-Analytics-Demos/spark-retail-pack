@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    incremental_strategy='append',
+    incremental_strategy='merge',
     unique_key='refund_id',
     on_schema_change='append_new_columns',
     cluster_by=['refund_date', 'order_sk']
@@ -28,23 +28,29 @@ refund_amounts as (
         r.refund_note,
         r.is_restock,
         r._extracted_at,
-        -- Sum of all 'refund' transactions that succeeded
-        coalesce((
-            select sum(try_cast(t.value:amount as numeric(18,6)))
-            from lateral flatten(input => r.refund_transactions, outer => true) t
-            where lower(t.value:kind::varchar)   = 'refund'
-              and lower(t.value:status::varchar) = 'success'
+        coalesce(sum(
+            case
+                when lower(t.value:kind::varchar)   = 'refund'
+                 and lower(t.value:status::varchar) = 'success'
+                then try_cast(t.value:amount::varchar as numeric(18,6))
+                else null
+            end
         ), 0)                                                           as refund_amount_local,
-        -- Shipping refunded: from transactions where reason includes 'shipping'
-        coalesce((
-            select sum(try_cast(t.value:amount as numeric(18,6)))
-            from lateral flatten(input => r.refund_transactions, outer => true) t
-            where lower(t.value:kind::varchar)   = 'refund'
-              and lower(t.value:status::varchar) = 'success'
-              and lower(coalesce(t.value:reason::varchar, '')) like '%shipping%'
+        coalesce(sum(
+            case
+                when lower(t.value:kind::varchar)   = 'refund'
+                 and lower(t.value:status::varchar) = 'success'
+                 and lower(coalesce(t.value:reason::varchar, '')) like '%shipping%'
+                then try_cast(t.value:amount::varchar as numeric(18,6))
+                else null
+            end
         ), 0)                                                           as refund_shipping_amount_local
-    from {{ ref('stg_shopify__refunds') }} r
+    from {{ ref('stg_shopify__refunds') }} r,
+        lateral flatten(input => r.refund_transactions, outer => true) t
     where r.refund_id in (select refund_id from refunds)
+    group by
+        r.refund_id, r.order_id, r.refund_timestamp, r.refund_date,
+        r.refund_note, r.is_restock, r._extracted_at
 ),
 
 -- Order context for order_sk, customer_sk, financial_status, fx_rate
@@ -64,8 +70,8 @@ order_ctx as (
 stripe_ctx as (
     select
         sc.shopify_order_id                                             as order_id,
-        lower(coalesce(sr.reason, ''))                                  as stripe_reason,
-        lower(coalesce(sr.status, ''))                                  as stripe_status,
+        lower(coalesce(sr.refund_reason, ''))                           as stripe_reason,
+        lower(coalesce(sr.refund_status, ''))                           as stripe_status,
         sc.charge_id
     from {{ ref('stg_stripe__charges') }} sc
     left join {{ ref('stg_stripe__refunds') }} sr

@@ -33,6 +33,10 @@ shopify,draft_orders,shopify_draft_orders,Draft Orders,online_store,draft,false,
 shopify,shopify_draft_orders,shopify_draft_orders,Draft Orders,online_store,draft,false,shopify,online
 shopify,amazon,marketplace_amazon,Amazon,marketplace,marketplace,false,amazon,marketplace
 shopify,google,paid_search_google,Google Ads,search,paid_search,true,google,search
+shopify,facebook / cpc,paid_social_meta,Meta Ads,social,paid_social,true,meta,meta
+shopify,google / organic,organic_search_google,Google Organic,search,organic_search,false,google,search
+shopify,google / cpc,paid_search_google,Google Ads,search,paid_search,true,google,search
+shopify,referral / referral,referral_other,Referral,referral,organic_referral,false,,referral
 shopify,tiktok,social_tiktok,TikTok Shop,social,social_commerce,false,tiktok,tiktok
 shopify,recharge,subscription_recharge,ReCharge Subscriptions,online_store,subscription,false,recharge,subscriptions
 shopify,subscription,subscription_other,Subscriptions,online_store,subscription,false,,subscriptions

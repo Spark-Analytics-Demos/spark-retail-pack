@@ -37,7 +37,7 @@ renamed as (
         cast(datetime as date)                                                  as event_date,
 
         -- event_properties kept as VARIANT; link_url and subject extracted in mart layer
-        cast(event_properties as variant)                                       as event_properties,
+        try_parse_json(cast(event_properties as varchar))                      as event_properties,
 
         datetime                                                                as _extracted_at
     from source

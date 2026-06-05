@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    incremental_strategy='append',
+    incremental_strategy='merge',
     unique_key='session_id',
     on_schema_change='append_new_columns',
     cluster_by=['session_date', 'customer_sk', 'channel_sk']

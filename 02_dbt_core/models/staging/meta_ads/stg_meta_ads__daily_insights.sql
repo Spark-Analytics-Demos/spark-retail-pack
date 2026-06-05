@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 -- Meta Ads daily performance metrics. One row per day per ad (or ad_set/campaign if
 -- connector is configured at a higher granularity).
@@ -17,52 +17,80 @@ with source as (
     select * from {{ source('meta_ads', 'daily_insights') }}
 ),
 
+-- Snowflake does not support LATERAL FLATTEN inside a scalar subquery.
+-- Aggregate purchase conversions per row in separate CTEs, then join back.
+actions_agg as (
+    select
+        date_start,
+        campaign_id,
+        ad_set_id,
+        ad_id,
+        coalesce(
+            sum(case
+                when a.value:action_type::varchar = 'purchase'
+                then try_cast(a.value:value::varchar as numeric(18, 6))
+            end),
+            0
+        )::numeric(18, 6)                                                        as platform_reported_conversions
+    from source,
+        lateral flatten(
+            input  => try_parse_json(cast({{ source_col('meta_ads', 'daily_insights', 'actions_raw', 'actions') }} as varchar)),
+            outer  => true
+        ) a
+    group by 1, 2, 3, 4
+),
+
+action_values_agg as (
+    select
+        date_start,
+        campaign_id,
+        ad_set_id,
+        ad_id,
+        coalesce(
+            sum(case
+                when av.value:action_type::varchar = 'purchase'
+                then try_cast(av.value:value::varchar as numeric(18, 6))
+            end),
+            0
+        )::numeric(18, 6)                                                        as platform_reported_conversion_value
+    from source,
+        lateral flatten(
+            input  => try_parse_json(cast({{ source_col('meta_ads', 'daily_insights', 'action_values_raw', 'action_values') }} as varchar)),
+            outer  => true
+        ) av
+    group by 1, 2, 3, 4
+),
+
 renamed as (
     select
-        cast(date_start    as date)                                              as spend_date,
-        'meta_' || cast(campaign_id as varchar)                                  as campaign_id,
-        cast(campaign_id   as varchar)                                           as meta_campaign_id,
-        cast(ad_set_id     as varchar)                                           as ad_set_id,
-        cast(ad_id         as varchar)                                           as ad_id,
+        cast(s.date_start  as date)                                              as spend_date,
+        'meta_' || cast(s.campaign_id as varchar)                                as campaign_id,
+        cast(s.campaign_id as varchar)                                           as meta_campaign_id,
+        cast(s.ad_set_id   as varchar)                                           as ad_set_id,
+        cast(s.ad_id       as varchar)                                           as ad_id,
 
-        -- spend is already in account currency decimal (not cents for insights)
-        cast(spend as numeric(18, 6))                                            as spend_amount_local,
+        cast(s.spend as numeric(18, 6))                                          as spend_amount_local,
 
-        cast(impressions as int)                                                 as impressions,
-        cast(clicks      as int)                                                 as clicks,
-        cast(coalesce(reach, 0) as int)                                          as reach,
+        cast(s.impressions as int)                                               as impressions,
+        cast(s.clicks      as int)                                               as clicks,
+        cast(coalesce(s.reach, 0) as int)                                        as reach,
+        cast(coalesce(s.inline_link_clicks, 0) as int)                           as link_clicks,
 
-        -- unique clicks (link clicks, not all clicks)
-        cast(coalesce(inline_link_clicks, 0) as int)                             as link_clicks,
+        coalesce(aa.platform_reported_conversions, 0)                            as platform_reported_conversions,
+        coalesce(ava.platform_reported_conversion_value, 0)                      as platform_reported_conversion_value,
 
-        -- platform-reported conversions from actions array (VARIANT path)
-        -- Fivetran connector users: see connector note above — may need a separate join
-        coalesce(
-            (
-                select sum(try_cast(a.value:value as numeric(18, 6)))
-                from lateral flatten(
-                    input  => try_parse_json(cast({{ source_col('meta_ads', 'daily_insights', 'actions_raw', 'actions') }} as varchar)),
-                    outer  => true
-                ) a
-                where a.value:action_type::varchar = 'purchase'
-            ),
-            0
-        )::numeric(18, 6)                                                        as platform_reported_conversions,
-
-        coalesce(
-            (
-                select sum(try_cast(av.value:value as numeric(18, 6)))
-                from lateral flatten(
-                    input  => try_parse_json(cast({{ source_col('meta_ads', 'daily_insights', 'action_values_raw', 'action_values') }} as varchar)),
-                    outer  => true
-                ) av
-                where av.value:action_type::varchar = 'purchase'
-            ),
-            0
-        )::numeric(18, 6)                                                        as platform_reported_conversion_value,
-
-        date_start                                                               as _extracted_at
-    from source
+        s.date_start                                                             as _extracted_at
+    from source s
+    left join actions_agg aa
+        on  s.date_start  = aa.date_start
+        and s.campaign_id = aa.campaign_id
+        and s.ad_set_id   = aa.ad_set_id
+        and s.ad_id       = aa.ad_id
+    left join action_values_agg ava
+        on  s.date_start  = ava.date_start
+        and s.campaign_id = ava.campaign_id
+        and s.ad_set_id   = ava.ad_set_id
+        and s.ad_id       = ava.ad_id
 )
 
 select

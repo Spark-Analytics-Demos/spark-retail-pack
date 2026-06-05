@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    incremental_strategy='append',
+    incremental_strategy='merge',
     unique_key='event_id',
     on_schema_change='append_new_columns',
     cluster_by=['event_date', 'customer_sk', 'email_campaign_sk']

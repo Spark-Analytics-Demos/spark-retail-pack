@@ -78,7 +78,11 @@ models:
               field: payment_method_sk
       - name: order_date
         description: Business date of the order in reporting timezone.
-        tests: [not_null]
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: "'2015-01-01'"
+              max_value: "'2030-01-01'"
       - name: order_timestamp
         description: Precise order creation timestamp (UTC).
         tests: [not_null]
@@ -92,7 +96,10 @@ models:
         description: Shopify fulfillment status — unfulfilled, partial, fulfilled, restocked.
       - name: financial_status
         description: Shopify financial status — pending, authorized, paid, partially_paid, refunded, partially_refunded, voided.
-        tests: [not_null]
+        tests:
+          - not_null
+          - accepted_values:
+              values: [pending, authorized, paid, partially_paid, refunded, partially_refunded, voided]
       - name: gross_amount
         description: Order value before discounts and refunds, in reporting currency.
         tests: [not_null]
@@ -322,7 +329,11 @@ models:
               field: customer_sk
       - name: refund_date
         description: Date of the refund event.
-        tests: [not_null]
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: "'2015-01-01'"
+              max_value: "'2030-01-01'"
       - name: refund_timestamp
         description: Precise refund timestamp.
         tests: [not_null]
@@ -426,7 +437,11 @@ models:
               field: channel_sk
       - name: spend_date
         description: Date of ad spend.
-        tests: [not_null]
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: "'2015-01-01'"
+              max_value: "'2030-01-01'"
       - name: date_sk
         description: FK to dim_date — YYYYMMDD integer matching dim_date.date_sk.
         tests:
@@ -517,7 +532,11 @@ models:
               field: geography_sk
       - name: session_date
         description: Date the session started.
-        tests: [not_null]
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: "'2015-01-01'"
+              max_value: "'2030-01-01'"
       - name: session_start_timestamp
         description: Precise session start time.
         tests: [not_null]
@@ -588,7 +607,11 @@ models:
               values: [sent, delivered, opened, clicked, bounced, unsubscribed, marked_spam, converted, other]
       - name: event_date
         description: Date the event occurred.
-        tests: [not_null]
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: "'2015-01-01'"
+              max_value: "'2030-01-01'"
       - name: event_timestamp
         description: Precise event timestamp.
         tests: [not_null]
@@ -649,7 +672,11 @@ models:
         tests: [not_null]
       - name: snapshot_date
         description: Date of snapshot — always current_date() on daily run.
-        tests: [not_null]
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: "'2015-01-01'"
+              max_value: "'2030-01-01'"
       - name: days_since_acquisition
         description: Days since first appearance in any source system.
         tests: [not_null]
@@ -732,7 +759,11 @@ models:
         tests: [not_null]
       - name: snapshot_date
         description: Date of the inventory snapshot.
-        tests: [not_null]
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: "'2015-01-01'"
+              max_value: "'2030-01-01'"
       - name: quantity_on_hand
         description: Physical stock — approximated as Shopify available in v1.
       - name: quantity_committed

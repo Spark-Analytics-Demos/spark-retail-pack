@@ -45,6 +45,12 @@ vars:
   # Reporting currency for all monetary values (Section 4 Part 1 §4.11)
   reporting_currency: 'USD'
 
+  # Source (bronze) database where the ingestion tool lands raw data.
+  # Production default: RAW_RETAIL (Fivetran/Airbyte target).
+  # Override for dev/demo: --vars '{"raw_database": "ANALYTICS_RETAIL_STAGING"}'
+  # or set in profiles.yml target vars block.
+  raw_database: 'RAW_RETAIL'
+
   # Reporting timezone for date/time conversions (Section 4 Part 1 §4.7)
   # Locked: Africa/Nairobi (EAT, UTC+3, no DST) — see PHASE_0_DECISIONS.md §3
   reporting_timezone: 'Africa/Nairobi'
@@ -65,6 +71,20 @@ vars:
 
   # Earliest data we want to load (filters out historical noise per Section 6.4)
   min_order_date: '2020-01-01'
+
+  # Demo/test only: when true, the point-in-time snapshot facts (fact_customer_state_daily,
+  # fact_inventory_snapshot) emit a month-end snapshot for every month in the order history
+  # so dashboard trend lines — and the small-tier KPI assertions calibrated to them — work.
+  # Auto-enabled on the demo (staging) and CI targets; prod/dev stay today-only. Renders as a
+  # quoted string 'True'/'False' (YAML can't take unquoted Jinja braces); the snapshot facts
+  # normalise it to a real boolean before use.
+  backfill_snapshots: "{{ target.name in ['staging', 'ci', 'smoke'] }}"
+
+  # Demo/test only: build fact_inventory_snapshot from the daily inventory history feed
+  # (stg_shopify__inventory_snapshots) — one real snapshot per day — so the Inventory Health
+  # dashboard has genuine daily trends. Auto-enabled on staging + CI; prod/dev stay today-only
+  # (real Shopify exposes only current levels).
+  use_daily_snapshot_history: "{{ target.name in ['staging', 'ci', 'smoke'] }}"
 
 # -----------------------------------------------------------------------------
 # Model configurations
@@ -121,7 +141,6 @@ models:
       inventory:
         +schema: mart_inventory
         +tags: ['marts', 'inventory']
-
 # -----------------------------------------------------------------------------
 # Seed configurations
 # Seeds for source mappings, channel mappings, etc.

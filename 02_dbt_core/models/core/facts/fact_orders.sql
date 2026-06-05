@@ -17,15 +17,36 @@ with orders as (
     {{ incremental_lookback('updated_at', 'fact_orders') }}
 ),
 
--- Compute FX rate once per order to avoid repeated correlated subquery per column
+-- FX rate validity intervals: each rate row is valid from rate_date until the next rate_date
+-- for the same currency pair (LEAD window). Avoids correlated subqueries (unsupported in Snowflake).
+fx_intervals as (
+    select
+        from_currency,
+        rate_date                                                       as valid_from,
+        lead(rate_date) over (
+            partition by from_currency, to_currency
+            order by rate_date
+        )                                                               as valid_to,
+        rate
+    from {{ ref('fx_rates') }}
+    where to_currency = '{{ var("reporting_currency", "USD") }}'
+),
+
 orders_fx as (
     select
-        *,
-        cast(
-            {{ daily_fx_rate('original_currency_code', 'order_date') }}
-            as numeric(18,8)
-        )                                                               as fx_rate
-    from orders
+        o.*,
+        coalesce(
+            fx.rate,
+            case when upper(o.original_currency_code) = '{{ var("reporting_currency", "USD") }}'
+                 then 1.0
+                 else null
+            end
+        )::numeric(18,8)                                                as fx_rate
+    from orders o
+    left join fx_intervals fx
+        on upper(o.original_currency_code) = fx.from_currency
+        and o.order_date::date >= fx.valid_from
+        and (fx.valid_to is null or o.order_date::date < fx.valid_to)
 ),
 
 enriched as (
@@ -35,15 +56,19 @@ enriched as (
 refund_totals as (
     select
         order_id,
-        sum(
-            coalesce((
-                select sum(try_cast(t.value:amount as numeric(18,6)))
-                from lateral flatten(input => refund_transactions, outer => true) t
-                where lower(t.value:kind::varchar)   = 'refund'
-                  and lower(t.value:status::varchar) = 'success'
-            ), 0)
-        )                                                               as refunded_amount_local
-    from {{ ref('stg_shopify__refunds') }}
+        coalesce(
+            sum(
+                case
+                    when lower(t.value:kind::varchar)   = 'refund'
+                     and lower(t.value:status::varchar) = 'success'
+                    then try_cast(t.value:amount::varchar as numeric(18,6))
+                    else null
+                end
+            ),
+            0
+        )::numeric(18,6)                                                as refunded_amount_local
+    from {{ ref('stg_shopify__refunds') }},
+        lateral flatten(input => refund_transactions, outer => true) t
     group by order_id
 ),
 
@@ -185,9 +210,17 @@ left join {{ ref('dim_customer') }} dc
     and o.order_timestamp >= dc.valid_from
     and (o.order_timestamp < dc.valid_to or dc.valid_to is null)
     and o.shopify_customer_id is not null
--- Channel: exact source_name match, fall back to wildcard '*'
+-- Channel: prefer the UTM signal (note_attributes utm_source/utm_medium) over source_name.
+-- The storefront sets source_name = 'web' for all non-direct traffic, so the order's true
+-- acquisition channel lives in the UTM (e.g. 'facebook / cpc' -> Meta Ads). Build the
+-- 'utm_source / utm_medium' key, fall back to source_name, then the wildcard '*'.
 left join channel_map cm_exact
-    on cm_exact.source_value = o.source_name
+    on cm_exact.source_value = coalesce(
+        case
+            when o.utm_source is not null
+                then lower(o.utm_source) || ' / ' || coalesce(lower(o.utm_medium), '(none)')
+        end,
+        o.source_name)
 left join channel_map cm_wild
     on cm_wild.source_value = '*'
 left join {{ ref('dim_channel') }} dch

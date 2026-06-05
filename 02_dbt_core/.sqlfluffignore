@@ -7,3 +7,9 @@ target/
 # Macros use complex Jinja that jinja templater cannot resolve cleanly.
 # Macro correctness is verified by dbt parse/compile, not SQLFluff.
 macros/
+
+# Models call project macros (add_audit_columns, generate_dim_sk, ...) which the
+# jinja templater (used here to avoid a warehouse connection) cannot resolve —
+# every model raises a templating error under SQLFluff. Model SQL is validated by
+# the dbt parse → compile → build job instead. Same rationale as macros/ above.
+models/

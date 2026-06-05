@@ -193,7 +193,7 @@ def main():
     print("\n[4/7] Generating inventory snapshots...")
     inventory_data = generate_inventory(rng, cfg, products_data, orders_data, company)
     write_csv(drop_internal_cols(inventory_data["shopify_inventory_levels"]),
-              output_base / "shopify" / "inventory_levels_final.csv")
+              output_base / "shopify" / "inventory_levels.csv")
     # Daily snapshots are large — write to their own directory
     write_csv(drop_internal_cols(inventory_data["daily_snapshots"]),
               output_base / "bronze_pre_aggregated" / "inventory_snapshots.csv")

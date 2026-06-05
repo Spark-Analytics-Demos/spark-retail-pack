@@ -56,6 +56,13 @@ BROWSER_WEIGHTS = [0.65, 0.22, 0.08, 0.05]
 PAYMENT_GATEWAYS = ["shopify_payments", "paypal", "stripe"]
 GATEWAY_WEIGHTS = [0.72, 0.18, 0.10]
 
+CARD_BRANDS   = ["visa", "mastercard", "amex", "discover"]
+CARD_WEIGHTS  = [0.50,   0.30,         0.12,   0.08]
+CARD_FUNDING  = ["credit", "debit", "prepaid"]
+CARD_FUNDING_W= [0.65,    0.30,    0.05]
+CARD_WALLETS  = [None, None, None, None, "apple_pay", "google_pay"]  # ~33% wallet
+CARD_EXP_YEARS= ["2026", "2027", "2028", "2029", "2030"]
+
 FINANCIAL_STATUSES = ["paid", "partially_refunded", "refunded", "voided"]
 FIN_STATUS_WEIGHTS = [0.91, 0.04, 0.04, 0.01]
 
@@ -397,54 +404,131 @@ def generate_orders(
 
             # Transaction
             gateway = str(rng.choice(PAYMENT_GATEWAYS, p=GATEWAY_WEIGHTS))
+            txn_cb  = str(rng.choice(CARD_BRANDS, p=CARD_WEIGHTS)) if gateway != "paypal" else None
+            txn_cw  = str(rng.choice(CARD_WALLETS)) if gateway != "paypal" and rng.random() < 0.15 else None
             txn_rows.append({
-                "id": txn_id,
+                "id":       txn_id,
                 "order_id": order_id,
-                "kind": "sale",
-                "status": "success" if fin_status not in ("voided",) else "failure",
-                "created_at": order_ts.isoformat(),
-                "amount": net_total,
-                "currency": "USD",
-                "gateway": gateway,
+                "kind":     "sale",
+                "status":   "success" if fin_status not in ("voided",) else "failure",
+                "created_at":  order_ts.isoformat(),
                 "processed_at": order_ts.isoformat(),
+                "amount":   net_total,
+                "currency": "USD",
+                "gateway":  gateway,
                 "payment_method_type": "credit_card" if gateway != "paypal" else "paypal",
+                # Fivetran-flattened payment_method_details columns (§6.4)
+                "payment_details_credit_card_company":          txn_cb,
+                "payment_details_credit_card_bin":              f"{int(rng.integers(400000, 499999))}" if txn_cb else None,
+                "payment_details_credit_card_expiration_month": f"{int(rng.integers(1, 13)):02d}" if txn_cb else None,
+                "payment_details_credit_card_expiration_year":  str(rng.choice(CARD_EXP_YEARS)) if txn_cb else None,
+                "payment_details_credit_card_wallet":           txn_cw,
+                "maximum_refundable": net_total if fin_status == "paid" else 0.0,
+                "authorization":      f"auth_{txn_id:012x}" if fin_status != "voided" else None,
+                "error_code":         None,
+                "message":            None,
+                "parent_id":          None,
             })
             txn_id += 1
 
             # Stripe charge (if gateway is stripe or shopify_payments)
             if gateway in ("stripe", "shopify_payments"):
                 sc_id = f"ch_{stripe_charge_id:016x}"
+                pm_id = f"pm_{stripe_charge_id:016x}"
                 stripe_charge_id += 1
+                card_brand  = str(rng.choice(CARD_BRANDS,  p=CARD_WEIGHTS))
+                card_wallet = str(rng.choice(CARD_WALLETS)) if rng.random() < 0.15 else None
+                card_fund   = str(rng.choice(CARD_FUNDING, p=CARD_FUNDING_W))
+                card_last4  = f"{int(rng.integers(1000, 9999))}"
+                card_month  = f"{int(rng.integers(1, 13)):02d}"
+                card_year   = str(rng.choice(CARD_EXP_YEARS))
+                succeeded   = fin_status not in ("voided",)
                 stripe_charge_rows.append({
-                    "id": sc_id,
-                    "created": int(order_ts.timestamp()),
-                    "amount": int(net_total * 100),
-                    "currency": "usd",
-                    "status": "succeeded" if fin_status not in ("voided",) else "failed",
-                    "livemode": True,
-                    "customer": None,  # not all charges are linked to saved customers
+                    "id":              sc_id,
+                    "created":         int(order_ts.timestamp()),
+                    "amount":          int(net_total * 100),
+                    "amount_refunded": 0,
+                    "currency":        "usd",
+                    "status":          "succeeded" if succeeded else "failed",
+                    "livemode":        True,
+                    "customer":        None,
+                    # Fivetran-flattened payment_method_details — source_col macro
+                    # uses these default names when no source_mapping_override set.
+                    "payment_method_details_type":        "card",
+                    "payment_method_details_card_brand":  card_brand,
+                    "payment_method_details_card_last4":  card_last4,
+                    "payment_method_details_card_exp_month": card_month,
+                    "payment_method_details_card_exp_year":  card_year,
+                    "payment_method_details_card_wallet": card_wallet,
+                    "metadata_shopify_order_id":          str(order_id),
+                    "payment_method":  pm_id,
+                    "paid":            succeeded,
+                    "captured":        succeeded,
+                    "refunded":        False,
                 })
 
             # Refund
             if fin_status in ("refunded", "partially_refunded"):
                 refund_ts = order_ts + timedelta(days=int(rng.integers(1, 30)))
                 refund_amount = net_total if fin_status == "refunded" else round(net_total * 0.5, 2)
+
+                # Refund transaction VARIANT — required by stg_shopify__refunds → fact_refunds.
+                # Must have kind='refund' and status='success' for the amount to be picked up
+                # by the LATERAL FLATTEN in fact_refunds. Amount stored as string per Shopify API.
+                refund_txn = json.dumps([{
+                    "id": txn_id,
+                    "kind": "refund",
+                    "status": "success",
+                    "amount": str(round(refund_amount, 2)),
+                    "currency": "USD",
+                    "created_at": refund_ts.isoformat(),
+                    "processed_at": refund_ts.isoformat(),
+                    "gateway": gateway,
+                }])
+
+                # Allocate the refund to real order lines so refunded_quantity flows to
+                # fact_order_lines (drives Return Rate / units refunded). Full refund returns
+                # every line; a partial refund returns the single highest-value line. Fully
+                # deterministic (no rng) — keeps order/inventory generation byte-identical.
+                refunded_lines = lines if fin_status == "refunded" else [
+                    max(lines, key=lambda L: L["price"] * L["quantity"])
+                ]
+                refund_line_items = json.dumps([
+                    {
+                        "line_item_id": L["id"],
+                        "quantity": int(L["quantity"]),
+                        "subtotal": str(round(float(L["price"]) * int(L["quantity"]), 2)),
+                    }
+                    for L in refunded_lines
+                ])
+
                 refund_rows.append({
                     "id": refund_id,
                     "order_id": order_id,
                     "created_at": refund_ts.isoformat(),
-                    "note": "Customer return",
+                    "note": rng.choice([
+                        "Customer return", "Wrong item", "Damaged in transit",
+                        "Changed mind", "Quality issue", "Not as described",
+                    ]),
                     "processed_at": refund_ts.isoformat(),
+                    "restock": bool(rng.random() < 0.70),
+                    "transactions": refund_txn,
+                    "refund_line_items": refund_line_items,
                 })
 
                 # Stripe refund
                 if gateway in ("stripe", "shopify_payments") and stripe_charge_rows:
-                    last_charge_id = stripe_charge_rows[-1]["id"]
+                    last_charge = stripe_charge_rows[-1]
+                    last_charge["amount_refunded"] = int(refund_amount * 100)
+                    last_charge["refunded"] = True
                     stripe_refund_rows.append({
-                        "id": f"re_{refund_id:016x}",
-                        "charge": last_charge_id,
-                        "amount": int(refund_amount * 100),
-                        "created": int(refund_ts.timestamp()),
+                        "id":       f"re_{refund_id:016x}",
+                        "charge":   last_charge["id"],
+                        "amount":   int(refund_amount * 100),
+                        "currency": "usd",
+                        "status":   "succeeded",
+                        "reason":   "requested_by_customer",
+                        "created":  int(refund_ts.timestamp()),
                     })
                 refund_id += 1
 
@@ -462,6 +546,9 @@ def generate_orders(
             "id": f"dp_{idx:016x}",
             "charge": sc["id"],
             "amount": sc["amount"],
+            "currency": "usd",
+            "status": "lost",
+            "reason": "fraudulent",
             "created": sc["created"] + 86400 * int(rng.integers(10, 60)),
         })
 
@@ -471,11 +558,24 @@ def generate_orders(
     n_pms = min(len(stripe_charge_rows), 5000)
     stripe_pm_rows = []
     for i in range(n_pms):
-        pm_type = str(rng.choice(["card", "klarna", "affirm", "afterpay_clearpay"], p=[0.82, 0.10, 0.04, 0.04]))
+        pm_type  = str(rng.choice(["card", "klarna", "affirm", "afterpay_clearpay"], p=[0.82, 0.10, 0.04, 0.04]))
+        is_card  = pm_type == "card"
+        cb       = str(rng.choice(CARD_BRANDS,  p=CARD_WEIGHTS))     if is_card else None
+        cf       = str(rng.choice(CARD_FUNDING, p=CARD_FUNDING_W))   if is_card else None
+        cw       = str(rng.choice(CARD_WALLETS)) if is_card and rng.random() < 0.15 else None
         stripe_pm_rows.append({
-            "id": f"pm_{i:016x}",
-            "type": pm_type,
-            "created": int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp()) + int(rng.integers(0, 86400 * 365)),
+            "id":             f"pm_{i:016x}",
+            "type":           pm_type,
+            "customer":       None,
+            "card_brand":     cb,
+            "card_last4":     f"{int(rng.integers(1000, 9999))}" if is_card else None,
+            "card_exp_month": f"{int(rng.integers(1, 13)):02d}"  if is_card else None,
+            "card_exp_year":  str(rng.choice(CARD_EXP_YEARS))    if is_card else None,
+            "card_wallet":    cw,
+            "card_funding":   cf,
+            "card_country":   "US"                                if is_card else None,
+            "livemode":       True,
+            "created":        int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp()) + int(rng.integers(0, 86400 * 365)),
         })
 
     return {

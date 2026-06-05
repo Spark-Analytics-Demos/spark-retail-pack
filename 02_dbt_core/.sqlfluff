@@ -12,6 +12,9 @@ templater = jinja
 dialect = snowflake
 # Enforce a consistent line ending
 output_line_length = 120
+# Long-line limit (LT05). 120 to match output_line_length and the layout.long_lines
+# rule below; without this LT05 falls back to its 80-char default.
+max_line_length = 120
 
 # Rules excluded for this project:
 # RF04 — single-char aliases are fine in date spines and cross joins
