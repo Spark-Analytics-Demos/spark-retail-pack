@@ -1,0 +1,8 @@
+# GitHub Actions workflows run on Linux runners. Their bash `run:` blocks break
+# if stored with CRLF (the trailing \r leaks into shell commands), so pin LF
+# regardless of a contributor's core.autocrlf setting.
+.github/workflows/*.yml text eol=lf
+.github/workflows/*.yaml text eol=lf
+
+# Shell scripts are LF for the same reason.
+*.sh text eol=lf
