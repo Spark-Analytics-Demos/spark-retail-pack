@@ -13,7 +13,11 @@
 03_dbt_pro/
 06_governance/
 07_decisions/
-.github/
+# Pro CI/CD workflows stay in the monorepo — but track the OSS boundary guard.
+.github/*
+!.github/workflows
+.github/workflows/*
+!.github/workflows/oss-boundary-guard.yml
 setup/
 02_dbt_core/macros/
 02_dbt_core/models/intermediate/

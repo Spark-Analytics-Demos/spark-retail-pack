@@ -1,0 +1,49 @@
+name: OSS boundary guard
+
+# Backstop that keeps commercial (Pro) content out of this public mirror.
+#
+# The Pro monorepo (spark-retail-pack-pro) is the source of truth; only an
+# MIT-licensed subset is published here via scripts/sync_oss.py. This guard
+# fails the build if any Pro/commercial path is ever tracked in this repo —
+# whether from a bad sync, a manual commit, or a mis-pointed tag.
+#
+# Context: the v1.0.0 tag once pointed at a pre-rewrite commit that exposed
+# the entire Pro tier (macros, design docs, semantic layer, governance, ADRs)
+# in the public source tarball. This guard exists so that cannot recur silently.
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  no-pro-content:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert no Pro/commercial paths are tracked
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Forbidden path patterns (POSIX ERE, matched against `git ls-files`).
+          # Directory-level forbids are broad; .gitkeep placeholders that hold
+          # empty OSS dirs (e.g. 04_dashboards/, macros/) are allow-listed below.
+          forbidden='^01_design_docs/|^03_dbt_pro/|^04_dashboards/|^06_governance/|^07_decisions/|^setup/|^02_dbt_core/macros/|^02_dbt_core/models/(intermediate|advanced_metrics|semantic|ai_ready)/|^02_dbt_core/seeds/erasure_requests\.csv$|^CLAUDE\.md$|^IMPLEMENTATION_PLAYBOOK\.md$|^PHASE_0_CHECKLIST\.md$|^PHASE_0_DECISIONS\.md$|\.zip$'
+
+          violations="$(git ls-files | grep -E "$forbidden" | grep -v '/\.gitkeep$' || true)"
+
+          if [ -n "$violations" ]; then
+            echo "::error::Pro/commercial content detected in the public OSS repo:"
+            printf '%s\n' "$violations" | sed 's/^/  - /'
+            echo ""
+            echo "These paths are Pro-only and must never be published. They belong in"
+            echo "the spark-retail-pack-pro monorepo. Remove them from this repo and"
+            echo "re-publish via scripts/sync_oss.py, which strips commercial content."
+            exit 1
+          fi
+
+          echo "OSS boundary clean — no Pro/commercial paths tracked."
